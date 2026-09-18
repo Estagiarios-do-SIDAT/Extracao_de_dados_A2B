@@ -4,6 +4,8 @@ Repositório com consultas SQL, documentações e planilhas de validação usada
 
 O objetivo do projeto é manter, em um só lugar, as consultas usadas na apuração dos indicadores, a explicação das regras aplicadas e os arquivos de conferência contra os relatórios recebidos.
 
+Este repositório atende **somente a A2B / Protect4**. COI e Decision têm repositórios próprios (`Extracao_de_dados_COI` e `Extracao_de_dados_Decision`) e nada deles vive aqui. A antiga pasta `Queries`, onde os três núcleos conviviam, **não é mais fonte operacional** — desde 2026-09-18 a fonte oficial da A2B é este repositório.
+
 ## Estrutura do repositório
 
 ```text
@@ -18,14 +20,12 @@ O objetivo do projeto é manter, em um só lugar, as consultas usadas na apuraç
 │   │   ├── faia-calculation.md
 │   │   ├── farc-calculation.md
 │   │   └── powerbi-query.md
-│   ├── analysis/
-│   │   └── planilhas de comparação
-│   └── logs/
-│       └── logs de uso e conferência
+│   └── analysis/
+│       └── planilhas de comparação
 │
 ├── docs/
 │   └── project-context/
-│       └── FAIA-FARC-HISTORICO-CONTEXTO-MESTRE.md   histórico cumulativo do projeto
+│       └── FAIA-FARC-HISTORICO-CONTEXTO-MESTRE.md   Histórico Mestre da A2B
 │
 ├── support/
 │   ├── consulta_logs_chamados_listados.sql
@@ -159,4 +159,13 @@ As planilhas de análise servem para registrar se os resultados da consulta bate
 Ao alterar uma regra de cálculo, atualize também a documentação correspondente em `protect4/docs/`.
 
 Ao validar um novo ciclo, salve a planilha na pasta `protect4/analysis/`.
+
+## Histórico Mestre
+
+O histórico do projeto fica em
+[`docs/project-context/FAIA-FARC-HISTORICO-CONTEXTO-MESTRE.md`](docs/project-context/FAIA-FARC-HISTORICO-CONTEXTO-MESTRE.md).
+
+- Ele é **append-only**: cada intervenção vira uma seção nova, e seções antigas não são reescritas.
+- Trabalhos da A2B atualizam **somente** este histórico. COI e Decision mantêm o seu, nos respectivos repositórios.
+- As seções anteriores à separação dos repositórios foram herdadas do documento compartilhado da época de `Queries` e contêm registros de Decision e COI. Elas são mantidas como **legado histórico**, sem reescrita.
 

@@ -24576,3 +24576,37 @@ A investigação das automações (§68) permanece válida e não foi reaberta: 
 `coi/queries/consulta_coi_encerrados.sql` não foi tocada.
 
 --- FIM DO ARQUIVO MESTRE ---
+
+## 70. 2026-09-18 — a A2B / Protect4 passa a ter repositório próprio; este histórico passa a ser exclusivo da A2B
+
+### 70.1. A separação física
+
+Os três núcleos, que conviviam na pasta `Queries`, foram separados em três repositórios independentes:
+
+```text
+C:\Users\X04758606161\Documents\FAIA FARC\Extracao_de_dados_A2B        <- este
+C:\Users\X04758606161\Documents\FAIA FARC\Extracao_de_dados_COI
+C:\Users\X04758606161\Documents\FAIA FARC\Extracao_de_dados_Decision
+```
+
+Remote oficial:
+
+```text
+https://github.com/Estagiarios-do-SIDAT/Extracao_de_dados_A2B.git   branch main
+```
+
+`Queries` deixa de ser fonte operacional da A2B.
+
+### 70.2. O que este arquivo contém
+
+As seções 1 a 69 vieram do histórico compartilhado da época de `Queries` e registram também Decision e COI. Ficam **como estão**, como legado: várias delas tratam de dois núcleos na mesma seção — a §34 é Protect4 e Decision —, e separá-las exigiria reescrever o registro histórico. Menções a `Queries` nelas descrevem onde as coisas estavam na época.
+
+Esta cópia **não** contém as seções que o COI escreveu depois da separação; elas vivem só no histórico do COI.
+
+A partir desta seção, todo conteúdo novo aqui é da A2B / Protect4. Trabalhos da A2B atualizam **somente** este histórico.
+
+### 70.3. O que mudou na A2B nesta data
+
+Somente documentação: o `README.md` passou a declarar o escopo exclusivo do repositório, deixou de listar a pasta `protect4/logs/` — que não existe no repositório — e ganhou a seção sobre este histórico. Nenhuma consulta foi alterada.
+
+A janela de **seis ciclos 24-24** da consulta do Power BI da A2B é regra **da A2B** e permanece como está. Na mesma data ela foi removida da Decision, para onde tinha sido copiada indevidamente.
