@@ -7,7 +7,7 @@ Sem aspas duplas neste arquivo: pode ser colado dentro de uma medida DAX. -->
 <p style='margin:0 0 12px 0;color:#57606a'>Como a fonte de dados deste painel funciona e como mantê-la. Atualizado em 18/09/2026.</p>
 
 <div style='background:#eef5fc;border-left:4px solid #0b5cad;padding:10px 12px;margin:0 0 16px 0'>
-<b>Em uma linha:</b> o painel mostra os chamados da A2B/Protect4 <b>encerrados nos últimos 12 ciclos completos</b> — cada ciclo vai do dia 24 ao dia 23 do mês seguinte —, com FAIA e FARC na mesma linha. A janela avança sozinha a cada dia 24.
+<b>Em uma linha:</b> pela consulta consolidada do Power BI, o painel mostra os chamados da A2B/Protect4 <b>encerrados nos últimos 12 ciclos completos</b> — cada ciclo vai do dia 24 ao dia 23 do mês seguinte —, com FAIA e FARC na mesma linha. A janela avança sozinha a cada dia 24.
 </div>
 
 <h2 style='font-size:16px;color:#0b3d6b;border-bottom:1px solid #d0d7de;padding-bottom:4px'>1. O que é medido</h2>
@@ -22,11 +22,12 @@ Sem aspas duplas neste arquivo: pode ser colado dentro de uma medida DAX. -->
 <p>Base <b>mdb</b> do CA Service Desk Manager, lida <b>somente para leitura</b>. O SQL roda no SQL Server; o Power BI apenas envia o texto e importa o resultado. Tabelas principais: call_req (o chamado), act_log (histórico de eventos), ca_contact (pessoas e grupos), cr_stat, pri e prob_ctg (dicionários de status, severidade e categoria).</p>
 
 <h2 style='font-size:16px;color:#0b3d6b;border-bottom:1px solid #d0d7de;padding-bottom:4px'>3. Relação com as consultas de referência</h2>
-<p>As referências técnicas de cada cálculo são as consultas individuais <b>queries/consulta_faia_a2b_protect4.sql</b> e <b>queries/consulta_farc_a2b_protect4.sql</b>. A consulta do painel, <b>powerbi/consulta_faia_farc_power_bi.sql</b>, usa os mesmos dois motores lado a lado e junta os resultados; <b>não reimplementa</b> nenhuma regra. As diferenças são de período (automático no painel), de saída (um único resultado) e de calendário: o painel usa uma lista de feriados unificada para FAIA e FARC.</p>
+<p>As referências técnicas de cada cálculo são as consultas individuais <b>queries/consulta_faia_a2b_protect4.sql</b> e <b>queries/consulta_farc_a2b_protect4.sql</b>. A consulta do painel, <b>powerbi/consulta_faia_farc_power_bi.sql</b>, usa os mesmos dois motores lado a lado e junta os resultados; <b>não reimplementa</b> nenhuma regra. As individuais têm <b>parametrização própria de período</b> e não usam a regra de 12 ciclos, que é exclusiva da consulta consolidada do Power BI. As diferenças são de período (automático no painel), de saída (um único resultado) e de calendário: o painel usa uma lista de feriados unificada para FAIA e FARC.</p>
 
-<h2 style='font-size:16px;color:#0b3d6b;border-bottom:1px solid #d0d7de;padding-bottom:4px'>4. Período: últimos 12 ciclos 24-24</h2>
+<h2 style='font-size:16px;color:#0b3d6b;border-bottom:1px solid #d0d7de;padding-bottom:4px'>4. Período da consulta do Power BI: últimos 12 ciclos (24 → 23)</h2>
+<p>Vale para a consulta consolidada usada pelo relatório. As consultas individuais de FAIA e FARC têm período próprio, informado no próprio arquivo.</p>
 <table style='border-collapse:collapse;width:100%;margin:6px 0 10px 0'>
-<tr><td style='border:1px solid #d0d7de;padding:4px 6px;background:#f6f8fa;width:30%'><b>Ciclo</b></td><td style='border:1px solid #d0d7de;padding:4px 6px'>do dia 24 de um mês ao dia 23 do mês seguinte — regra da A2B/Protect4</td></tr>
+<tr><td style='border:1px solid #d0d7de;padding:4px 6px;background:#f6f8fa;width:30%'><b>Ciclo</b></td><td style='border:1px solid #d0d7de;padding:4px 6px'>começa às 00:00:00 do dia 24 e termina ao final do dia 23 do mês seguinte — regra da A2B/Protect4. Na consulta, é um intervalo fechado no início e aberto no fim (&gt;= dia 24 e &lt; dia 24 do mês seguinte), de modo que nenhum registro do dia 23 se perde por fração de segundo</td></tr>
 <tr><td style='border:1px solid #d0d7de;padding:4px 6px;background:#f6f8fa'><b>Quantidade</b></td><td style='border:1px solid #d0d7de;padding:4px 6px'>12 ciclos completos (parâmetro @PBI_QuantidadeCiclos)</td></tr>
 <tr><td style='border:1px solid #d0d7de;padding:4px 6px;background:#f6f8fa'><b>Ciclo em andamento</b></td><td style='border:1px solid #d0d7de;padding:4px 6px'>nunca entra</td></tr>
 <tr><td style='border:1px solid #d0d7de;padding:4px 6px;background:#f6f8fa'><b>Filtro</b></td><td style='border:1px solid #d0d7de;padding:4px 6px'>data de <b>fechamento</b> do chamado, no horário do Brasil (GMT-3)</td></tr>
@@ -34,7 +35,7 @@ Sem aspas duplas neste arquivo: pode ser colado dentro de uma medida DAX. -->
 </table>
 <ul style='margin-top:4px'>
 <li>O período <b>seleciona</b> quais chamados entram. Ele <b>não corta</b> os tempos: um chamado aberto antes da janela é calculado sobre a vida inteira.</li>
-<li>Até 18/09/2026 eram seis ciclos, fixos no código. A ampliação para 12 foi validada: com a mesma ordenação de eventos, os seis ciclos que já existiam ficaram idênticos.</li>
+<li>Eventos gravados no mesmo segundo são ordenados por act_log.id, de modo que o resultado é reproduzível entre atualizações.</li>
 </ul>
 
 <h2 style='font-size:16px;color:#0b3d6b;border-bottom:1px solid #d0d7de;padding-bottom:4px'>5. Regras de cálculo que valem a pena lembrar</h2>
@@ -65,7 +66,7 @@ Sem aspas duplas neste arquivo: pode ser colado dentro de uma medida DAX. -->
 <tr><td style='border:1px solid #d0d7de;padding:4px 10px'>12 ciclos (padrão)</td><td style='border:1px solid #d0d7de;padding:4px 10px'>12</td></tr>
 <tr><td style='border:1px solid #d0d7de;padding:4px 10px'>18 ciclos</td><td style='border:1px solid #d0d7de;padding:4px 10px'>18</td></tr>
 </table>
-<p>É o <b>único</b> número que muda; a regra de ciclo 24-24 continua a mesma. Se a mudança for permanente, faça a mesma troca no arquivo do repositório e registre no Histórico Mestre da A2B.</p>
+<p>É o <b>único</b> número que muda; a regra do ciclo, do dia 24 até o final do dia 23 do mês seguinte, não depende dele.</p>
 
 <h3 style='font-size:14px;margin:10px 0 4px 0'>Atualizar feriados e pontos facultativos</h3>
 <p>Ficam dentro do SQL, no bloco <b>[S.2] Feriados e pontos facultativos</b>, e valem para FAIA e FARC:</p>
@@ -76,7 +77,7 @@ Sem aspas duplas neste arquivo: pode ser colado dentro de uma medida DAX. -->
 <p><b>Fonte obrigatória:</b> somente a portaria anual do TCU que define feriados e pontos facultativos do ano, publicada no Boletim do TCU, <b>e todas as portarias que a alterarem</b>. Consulte em pesquisa.apps.tcu.gov.br, base Normas. Não use calendário civil genérico nem de outro órgão.</p>
 <ol style='margin-top:4px'>
 <li>Edite o arquivo <b>powerbi/consulta_faia_farc_power_bi.sql</b> num editor e procure <b>[S.2]</b>: adicione, corrija ou apague a linha. A última linha de cada lista termina em ponto e vírgula, não em vírgula. Não cadastre sábado nem domingo.</li>
-<li>Faça a mesma alteração nas duas consultas individuais (<b>queries/</b>, tabelas #FeriadosFixos e #FeriadosPorData).</li>
+<li>As consultas de referência (<b>queries/</b>, tabelas #FeriadosFixos e #FeriadosPorData) têm listas próprias e precisam ficar iguais à do painel.</li>
 <li>Copie o arquivo do painel <b>inteiro</b> e cole no campo <b>Instrução SQL</b> da etapa Fonte.</li>
 <li>OK › Fechar e aplicar › aprove a consulta nativa › <b>Atualizar</b>.</li>
 </ol>
@@ -93,13 +94,13 @@ Sem aspas duplas neste arquivo: pode ser colado dentro de uma medida DAX. -->
 <li>regras de FAIA e FARC, SLA por severidade, fatores 0,1 e 0,3;</li>
 <li>início da contagem, captura, posse e reposse, rotinas e motores de tempo;</li>
 <li>filtros de população, status e grupo Fornecedores - A2B;</li>
-<li>calendário de feriados, a regra de ciclo 24-24 e a regra de uma linha por chamado.</li>
+<li>calendário de feriados, a regra do ciclo (dia 24 até o final do dia 23 do mês seguinte) e a regra de uma linha por chamado.</li>
 </ul>
 </div>
 <ul style='margin-top:4px'>
 <li><b>Eventos no mesmo segundo:</b> são ordenados por act_log.id, a sequência de gravação do log. Isso torna o FARC estável entre atualizações; não troque esse desempate sem nova validação.</li>
 <li>Uma data de feriado <b>repetida</b> faz a atualização falhar com <i>Violation of PRIMARY KEY constraint</i>; a mensagem cita a data.</li>
-<li>Toda mudança feita no painel deve ser feita também no repositório <b>Extracao_de_dados_A2B</b>.</li>
+<li>A consulta fica incorporada ao relatório: a alteração vale na próxima atualização. Há um repositório interno, de versionamento e manutenção técnica, mantido pela equipe responsável.</li>
 </ul>
 
 <h2 style='font-size:16px;color:#0b3d6b;border-bottom:1px solid #d0d7de;padding-bottom:4px'>9. Conferência depois de atualizar</h2>
@@ -111,5 +112,5 @@ Sem aspas duplas neste arquivo: pode ser colado dentro de uma medida DAX. -->
 <li><b>Tipos:</b> devem aparecer Incidente, Solicitação e Problema.</li>
 </ol>
 
-<p style='margin-top:16px;color:#57606a;font-size:12px'>Documentação completa: docs/powerbi-query.md, no repositório Extracao_de_dados_A2B. Histórico: project-context/A2B-HISTORICO-CONTEXTO-MESTRE.md.</p>
+<p style='margin-top:16px;color:#57606a;font-size:12px'>Documentação completa e histórico técnico ficam no repositório interno de manutenção da A2B/Protect4, usado apenas pela equipe responsável pelo relatório.</p>
 </div>

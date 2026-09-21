@@ -54,6 +54,8 @@ queries/consulta_faia_a2b_protect4.sql
 queries/consulta_farc_a2b_protect4.sql
 ```
 
+Elas têm **parametrização própria de período** (`@InicioBrasil` / `@FimBrasil`, digitados no arquivo) e **não** usam a regra de 12 ciclos: essa regra é exclusiva da consulta consolidada do Power BI.
+
 Elas não foram substituídas. Quando houver dúvida sobre **como** um número é calculado, a resposta está nelas — e nos documentos [faia-calculation.md](faia-calculation.md) e [farc-calculation.md](farc-calculation.md).
 
 A consulta do Power BI **não reimplementa** nenhum cálculo: ela usa os mesmos dois motores, lado a lado, e junta os resultados no fim.
@@ -103,9 +105,7 @@ Todas as referências a tabelas no script são de **duas partes** (`dbo.call_req
 
 Fora do `mdb`, o lote inteiro falha na **compilação**, com `Msg 208 — Invalid object name`. Como o script é um lote único, **nada roda e nenhuma linha é devolvida**.
 
-**Correção aplicada e confirmada:** o script passou a começar com `USE mdb;`, que é o mesmo padrão das outras três consultas do repositório. Com isso ele deixa de depender do cliente. No Power BI a instrução é inofensiva — a conexão já aponta para o `mdb`.
-
-> **Confirmado em execução (2026-07-31).** Com o `USE mdb;`, a consulta foi executada com sucesso no SQL Server. O `Msg 208` desapareceu. Fica comprovado que a diferença de comportamento **não** era do Power BI: era a sessão do SSMS estar em outro banco.
+O script começa com `USE mdb;`, o mesmo padrão das outras consultas. Com isso ele não depende do cliente para escolher o banco. No Power BI a instrução é inofensiva — a conexão já aponta para o `mdb`.
 
 ### Como rodar no SSMS
 
@@ -130,14 +130,14 @@ Ao relatar um problema, informe sempre: **cliente** (Power BI ou SSMS), **banco 
 
 ## 5. Período da consulta
 
-O período é **automático**. Não há data para editar a cada mês.
+O período é **automático**. Não há data para editar a cada mês. **Esta seção vale para a consulta consolidada do Power BI** (`powerbi/consulta_faia_farc_power_bi.sql`); as consultas individuais têm período próprio, digitado no arquivo — ver [seção 2](#2-consultas-de-referência).
 
-- A consulta devolve os **últimos 12 ciclos completos** da Protect4 — cerca de um ano.
-- Um ciclo vai do **dia 24** de um mês até o **dia 23** do mês seguinte. Essa é a regra de ciclo da **A2B/Protect4**, e ela continua valendo.
+- No relatório Power BI, a consulta consolidada apresenta os **12 ciclos mais recentes** da Protect4 — cerca de um ano.
+- Cada ciclo compreende o período iniciado às **00:00:00 do dia 24** e encerrado ao **final do dia 23 do mês seguinte**.
 - O ciclo **em andamento não entra** — só entram ciclos já fechados.
-- A quantidade de ciclos é controlada por um único número, `@PBI_QuantidadeCiclos`, que é a **primeira instrução** do SQL. O padrão é `12`. Até 18/09/2026 eram seis, fixos no código.
+- A quantidade de ciclos é controlada por um único número, `@PBI_QuantidadeCiclos`, que é a **primeira instrução** do SQL. O padrão é `12`.
 - As datas são interpretadas no **horário do Brasil (GMT-3)**. O SDM grava em UTC; a consulta faz a conversão.
-- O intervalo é **semiaberto**: começa às 00:00 do dia 24 do ciclo mais antigo e termina, **exclusivo**, às 00:00 do dia 24 do ciclo em andamento.
+- Na consulta, essa regra é implementada como intervalo **fechado no início e aberto no fim** — `>= dia 24` e `< dia 24 do mês seguinte` —, o que evita perder registros com frações de segundo no encerramento do dia 23. A janela inteira termina, exclusiva, às 00:00 do dia 24 do ciclo em andamento.
 
 **Exemplo, atualizando em 18/09/2026** (antes do dia 24, então o ciclo em andamento começou em 24/08):
 
@@ -388,27 +388,18 @@ Se os dois números forem diferentes, existe duplicidade e o resultado não deve
 - chamados com reposse (várias janelas de posse) e chamados sem captura;
 - a contagem de logs contra a `act_log` real.
 
-**Validado em execução no SQL Server** (2026-09-18) — ampliação de 6 para 12 ciclos:
+**Validado em execução no SQL Server** (2026-09-18) — cobertura de 12 ciclos:
 
-- a janela de 12 ciclos vai de `24/08/2025` a `24/08/2026` exclusivo, medida em 18/09/2026;
+- a janela vai de `24/08/2025` a `24/08/2026` exclusivo, medida em 18/09/2026;
 - 2.410 linhas e 2.410 SDMs distintos, sem duplicidade;
-- nos **6 ciclos que já existiam**, com a mesma ordenação de eventos nas duas versões: 0 SDMs removidos, 0 SDMs extras, 0 colunas diferentes, mesmo SHA256 das linhas antes e depois;
-- os 6 ciclos novos (24/08/2025 a 23/02/2026) acrescentaram 1.207 chamados.
-
-**Correções aplicadas em 2026-09-18 (2ª)** — validadas em execução:
-
-- **FARC determinístico.** Eventos gravados no mesmo segundo passaram a ser ordenados por `act_log.id`, a sequência de gravação do log, nos quatro pontos que antes ordenavam só pelo segundo. Três execuções seguidas do painel deram resultado idêntico. Na ordem (segundo, `id`), a cadeia de status fica consistente — a origem de cada evento é o destino do anterior — em 16.114 de 16.115 pares medidos.
-- **Calendário completo na janela.** Incluídos `2025-10-27`, `2025-11-21`, `2025-12-26` e `2026-06-29`, das portarias oficiais do TCU.
-- **Efeito:** 32 chamados mudam só por causa do calendário, e só em colunas de tempo. Em comparação com uma execução específica da versão anterior de 12 ciclos, 59 chamados apresentaram alguma diferença; nessa execução, `nHR_FARC`/`FARC` mudaram em 5 e uma meta mudou: `1492048`, de `Não Atende` para `Atende` — o valor anterior vinha da ordem errada numa rajada de status. Como a versão anterior do FARC era não determinística, esse total não é fixo entre execuções. Isoladamente, a atualização do calendário afeta 32 chamados, enquanto a correção do desempate do FARC afeta de 17 a 29 chamados, conforme a execução anterior usada na comparação. Nenhum FAIA, `nHR_FAIA` ou meta do FAIA muda.
+- três execuções seguidas devolveram **resultado idêntico**: eventos gravados no mesmo segundo são ordenados por `act_log.id`, o que torna o FARC reproduzível;
+- o FARC individual e o painel devolvem os mesmos `Tempo de Atendimento`, `Meta`, `nHR_FARC` e `FARC` nos 234 chamados do ciclo em comum.
 
 **Limitações conhecidas:**
 
-- ~~**o FARC não é determinístico em alguns chamados.**~~ *Corrigido em 2026-09-18 (2ª); texto mantido como registro.* Com a mesma consulta e a mesma janela, execuções seguidas deram `Tempo de Atendimento` diferente em 25 a 33 dos 1.203 chamados dos 6 ciclos antigos — a maioria P2 —, e num deles (`1492048`) a `Meta Atendimento` trocou. A causa: eventos de status ou de grupo no **mesmo segundo**, ordenados sem desempate — nos dois `LEAD(ev_epoch) … ORDER BY ev_epoch` (segmentos ativos e intervalos "Em andamento") e no `TOP (1)` do estado de grupo inicial. Qual evento fica com o trecho seguinte depende da ordem física escolhida pelo SQL Server naquela execução. Com desempate fixo nesses três pontos, duas execuções deram resultado idêntico. É um defeito **anterior** à ampliação, presente também com 6 ciclos. Corrigi-lo exige escolher o desempate — decisão de negócio —, então **não foi corrigido**.
-- ~~**datas oficiais do TCU ausentes do calendário**~~ *(corrigido em 2026-09-18 (2ª); texto mantido como registro)*, dentro da janela de 12 ciclos: `2025-10-27` (Dia do Servidor, Portaria-TCU nº 10/2025), `2025-11-21` (Portaria-TCU nº 157/2025), `2025-12-26` (Portaria-TCU nº 176/2025) e `2026-06-29` (Portaria-TCU nº 93/2026). A última cai nos ciclos já validados. Não foram incluídas porque alteram resultado e a regra da A2B não pode mudar sem decisão.
-
 - os pontos facultativos de **2027 ainda não estão cadastrados**. A partir de janeiro de 2027 o calendário comercial ficará incompleto até que sejam incluídos.
-- o FAIA e o FARC individuais (`queries/`) têm listas próprias de feriados. Receberam as mesmas quatro datas, mas a do FAIA individual continua **sem** `2025-12-24` e `2025-12-31`, uma diferença anterior que não fez parte desta correção.
-- nas colunas compartilhadas `Data Abertura` e `Data Captura`, o painel usa o valor da metade FAIA; em 9 dos 234 chamados do ciclo 24/03–23/04/2026 ele difere do FARC individual. A diferença já existia antes das correções. As colunas do FARC (`Tempo de Atendimento`, `Meta`, `nHR_FARC`, `FARC`) batem nos 234.
+- o FAIA e o FARC individuais (`queries/`) mantêm listas próprias de feriados. A do FAIA individual não tem `2025-12-24` e `2025-12-31`, presentes nas outras duas; um chamado comercial que atravesse essas datas pode ter FAIA ligeiramente diferente entre as duas consultas.
+- nas colunas compartilhadas `Data Abertura` e `Data Captura`, o painel usa o valor da metade FAIA, que difere do FARC individual em alguns chamados — 9 dos 234 do ciclo 24/03–23/04/2026. As colunas do FARC coincidem nos 234.
 - a regra de arredondamento (proporcional, em vez de "hora ou fração") **ainda não foi confirmada contra o edital**. Se o edital exigir "hora ou fração", os quatro indicadores do projeto precisarão ser revistos.
 - o calendário de feriados desta consulta inclui `2025-12-24` e `2025-12-31`, que **não** estão na consulta individual do FAIA. Enquanto essa diferença existir, um chamado cuja janela comercial toque essas duas datas pode ter FAIA ligeiramente diferente entre as duas consultas.
 
@@ -442,11 +433,13 @@ DECLARE @PBI_QuantidadeCiclos int = 12;
 2. Troque `12` pelo número de ciclos — por exemplo `6` ou `18`.
 3. **OK → Fechar e aplicar**, aprove a consulta nativa e atualize.
 
-É o único número que muda. A regra de ciclo 24-24 não muda.
+É o único número que muda. A regra do ciclo — do dia 24 até o final do dia 23
+do mês seguinte — não depende dele.
 
-Se a mudança for **permanente**, faça a mesma troca em
-`powerbi/consulta_faia_farc_power_bi.sql` e registre no Histórico Mestre da A2B,
-para o repositório continuar igual ao painel.
+A consulta usada pelo painel fica incorporada ao próprio relatório, então a
+troca vale a partir da próxima atualização. Existe um repositório interno, usado
+para versionamento e manutenção técnica, onde a mesma alteração é registrada
+pela equipe responsável quando a cobertura muda em definitivo.
 
 ### Atualizar feriados
 
@@ -459,7 +452,7 @@ e a caixa **Instrução SQL** não tem busca. O caminho seguro é editar o
 3. **Adicionar:** inclua a linha na tabela certa — `#PBI_FeriadosFixos` (`'MM-DD'`) ou `#PBI_FeriadosPorData` (`'AAAA-MM-DD'`).
 4. **Corrigir:** edite a data ou a descrição na linha existente.
 5. **Remover:** apague a linha inteira e confira a vírgula da linha anterior.
-6. Faça a mesma alteração em `queries/consulta_faia_a2b_protect4.sql` e `queries/consulta_farc_a2b_protect4.sql` (tabelas `#FeriadosFixos` e `#FeriadosPorData`), para as referências técnicas não divergirem do painel.
+6. As consultas de referência, `queries/consulta_faia_a2b_protect4.sql` e `queries/consulta_farc_a2b_protect4.sql`, têm listas próprias (`#FeriadosFixos` e `#FeriadosPorData`). Elas precisam ficar iguais à do painel, senão os números divergem.
 7. Copie o arquivo do Power BI **inteiro** e cole no campo **Instrução SQL** da etapa **Fonte**, substituindo o texto anterior.
 8. **OK → Fechar e aplicar**, aprove a consulta nativa e **atualize**.
 

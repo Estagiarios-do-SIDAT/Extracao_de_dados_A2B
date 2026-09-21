@@ -105,7 +105,7 @@ Sobre o `In Progress`: é só "Em andamento" em inglês. A consulta checa os doi
 
 Pegadinha: "Aberto, aguarda atendimento" (fila inicial) conta; "Aguarda atendimento" (espera depois do trabalho) não conta.
 
-**Eventos no mesmo segundo.** O SDM grava o horário do log em segundos inteiros, e a automação às vezes registra várias mudanças de status no mesmo segundo — por exemplo `Agendado → Em andamento → Aguarda atendimento`. O status que vale depois da rajada é o do **último** evento. Por isso a consulta ordena os eventos por horário e, no empate, por `act_log.id`, que é a sequência de gravação do log. Sem esse desempate, a ordem ficava a critério do SQL Server e o mesmo chamado podia ter tempos diferentes em execuções diferentes (corrigido em 2026-09-18). O mesmo desempate vale para os eventos de grupo.
+**Eventos no mesmo segundo.** O SDM grava o horário do log em segundos inteiros, e a automação às vezes registra várias mudanças de status no mesmo segundo — por exemplo `Agendado → Em andamento → Aguarda atendimento`. O status que vale depois da rajada é o do **último** evento. Por isso a consulta ordena os eventos por horário e, no empate, por `act_log.id`, que é a sequência de gravação do log. Sem esse desempate, a ordem da rajada ficaria a critério do SQL Server e o mesmo chamado poderia ter tempos diferentes em execuções diferentes. O mesmo desempate vale para os eventos de grupo.
 
 \---
 
@@ -380,7 +380,7 @@ O que muda entre as duas:
 | | Esta consulta (`queries/`) | Consulta do painel (`powerbi/`) |
 |---|---|---|
 | O que retorna | só o FARC | FAIA **e** FARC, na mesma linha |
-| Período | fixo, editado à mão nos parâmetros | dinâmico: os últimos `@PBI_QuantidadeCiclos` ciclos 24-24 completos (padrão 12) |
+| Período | fixo, editado à mão nos parâmetros | dinâmico: os últimos `@PBI_QuantidadeCiclos` ciclos completos, do dia 24 ao final do dia 23 do mês seguinte (padrão 12) |
 | Para que serve | **referência técnica** do cálculo do FARC | fonte de dados do Power BI |
 | Diagnósticos | tem, com `@MostrarDiagnostico = 1` | não tem: devolve um único resultado |
 

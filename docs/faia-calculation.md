@@ -963,7 +963,7 @@ O que muda entre as duas:
 | | Esta consulta (`queries/`) | Consulta do painel (`powerbi/`) |
 |---|---|---|
 | O que retorna | só o FAIA | FAIA **e** FARC, na mesma linha |
-| Período | fixo, editado à mão nos parâmetros | dinâmico: os últimos `@PBI_QuantidadeCiclos` ciclos 24-24 completos (padrão 12) |
+| Período | fixo, editado à mão nos parâmetros | dinâmico: os últimos `@PBI_QuantidadeCiclos` ciclos completos, do dia 24 ao final do dia 23 do mês seguinte (padrão 12) |
 | Para que serve | **referência técnica** do cálculo do FAIA | fonte de dados do Power BI |
 | Diagnósticos | tem, com `@MostrarDiagnostico = 1` | não tem: devolve um único resultado |
 

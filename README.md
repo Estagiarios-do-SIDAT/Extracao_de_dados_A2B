@@ -14,7 +14,7 @@ Este repositório atende **somente a A2B / Protect4**. COI e Decision têm repos
 │   ├── consulta_faia_a2b_protect4.sql      referência técnica do FAIA
 │   └── consulta_farc_a2b_protect4.sql      referência técnica do FARC
 ├── powerbi/
-│   └── consulta_faia_farc_power_bi.sql     fonte do painel: FAIA e FARC, últimos 12 ciclos 24-24
+│   └── consulta_faia_farc_power_bi.sql     fonte do painel: FAIA e FARC, últimos 12 ciclos (24 → 23)
 ├── docs/
 │   ├── faia-calculation.md                 como o FAIA é calculado
 │   ├── farc-calculation.md                 como o FARC é calculado
@@ -137,7 +137,7 @@ DECLARE @MostrarDiagnostico bit = 0;
 
 **Consulta do painel** (`powerbi/`):
 
-- `@PBI_QuantidadeCiclos` — quantidade de ciclos 24-24 completos, padrão `12`. É o único parâmetro de período.
+- `@PBI_QuantidadeCiclos` — quantidade de ciclos completos, padrão `12`. Cada ciclo começa às 00:00:00 do dia 24 e termina ao final do dia 23 do mês seguinte. É o único parâmetro de período, e vale apenas para esta consulta: as individuais usam `@InicioBrasil`/`@FimBrasil`.
 - Feriados: tabelas `#PBI_FeriadosFixos` (`'MM-DD'`) e `#PBI_FeriadosPorData` (`'AAAA-MM-DD'`), no bloco `[S.2]`. As consultas individuais têm listas próprias (`#FeriadosFixos`, `#FeriadosPorData`); toda data nova deve entrar nas três, e só com fonte oficial do TCU. Passo a passo em [`docs/powerbi-query.md`](docs/powerbi-query.md#13-manutenção-no-power-query).
 
 ## Fluxo de validação
