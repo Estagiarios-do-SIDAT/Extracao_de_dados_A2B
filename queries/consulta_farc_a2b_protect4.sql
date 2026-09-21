@@ -149,10 +149,16 @@ VALUES
 
 IF OBJECT_ID('tempdb..#FeriadosPorData') IS NOT NULL DROP TABLE #FeriadosPorData;
 CREATE TABLE #FeriadosPorData (data date NOT NULL PRIMARY KEY, descricao nvarchar(200) NOT NULL);
--- Fim de 2025 (necessario para o ciclo Dez-2025 / Jan-2026):
+-- Pontos facultativos de 2025 no TCU (24/12 e 31/12 ja existiam).
+-- Fonte: Portaria-TCU n. 10/2025 e alteracoes n. 157/2025 e n. 176/2025
+-- (Boletim do TCU; autenticidade em www.tcu.gov.br/autenticidade, codigos
+-- 77411949, 79190602 e 79506777). 27/10, 21/11 e 26/12 incluidos em 2026-09-18.
 INSERT INTO #FeriadosPorData (data, descricao)
 VALUES
+    ('2025-10-27', N'Dia do Servidor Publico federal - ponto facultativo'),
+    ('2025-11-21', N'Ponto facultativo - sexta-feira apos Consciencia Negra'),
     ('2025-12-24', N'Ponto facultativo - vespera do Natal'),
+    ('2025-12-26', N'Ponto facultativo - sexta-feira apos o Natal'),
     ('2025-12-31', N'Ponto facultativo - vespera da Confraternizacao Universal');
 -- Moveis/diferenciados de 2026:
 INSERT INTO #FeriadosPorData (data, descricao)
@@ -170,6 +176,7 @@ VALUES
     ('2026-04-20', N'Ponto facultativo - emenda antes de Tiradentes'),
     ('2026-06-04', N'Corpus Christi - ponto facultativo'),
     ('2026-06-05', N'Ponto facultativo - emenda apos Corpus Christi'),
+    ('2026-06-29', N'Ponto facultativo - jogo da Selecao Brasileira na Copa do Mundo FIFA 2026'), -- Portaria-TCU n. 93/2026 (codigo 80587034), incluido em 2026-09-18
     ('2026-10-28', N'Dia do Servidor Publico federal - ponto facultativo'),
     ('2026-12-24', N'Ponto facultativo - vespera do Natal'),
     ('2026-12-31', N'Ponto facultativo - vespera da Confraternizacao Universal');
@@ -334,6 +341,7 @@ WHERE b.group_id = @FornecedorGrupo
 --------------------------------------------------------------------------------
 IF OBJECT_ID('tempdb..#LogEscopo') IS NOT NULL DROP TABLE #LogEscopo;
 SELECT
+    src.id AS log_id,  -- desempate de eventos no mesmo segundo (ver nota junto aos LEAD)
     src.call_req_id,
     src.system_time,
     src.description,
@@ -885,6 +893,7 @@ IF OBJECT_ID('tempdb..#GrupoEventos') IS NOT NULL DROP TABLE #GrupoEventos;
 SELECT
     b.id,
     al.system_time AS ev_epoch,
+    al.log_id,
     CONVERT(nvarchar(400), SUBSTRING(t.txt, a.anchor + 8, 400)) AS resto
 INTO #GrupoRaw
 FROM #BaseEscopo_FARC_P4 AS b
@@ -909,6 +918,7 @@ CREATE INDEX IX_GrupoRaw_id_epoch ON #GrupoRaw(id, ev_epoch);
 SELECT
     g.id,
     g.ev_epoch,
+    g.log_id,
     CASE WHEN dest.destino LIKE N'%A2B%' THEN 1 ELSE 0 END AS destino_a2b,
     CASE WHEN orig.origem  LIKE N'%A2B%' THEN 1 ELSE 0 END AS origem_a2b
 INTO #GrupoEventos
@@ -947,7 +957,8 @@ OUTER APPLY (
     SELECT TOP (1) g.origem_a2b
     FROM #GrupoEventos AS g
     WHERE g.id = b.id
-    ORDER BY g.ev_epoch ASC, g.destino_a2b DESC
+    -- log_id so decide quando segundo e destino_a2b empatam; ver DESEMPATE POR act_log.id
+    ORDER BY g.ev_epoch ASC, g.destino_a2b DESC, g.log_id ASC
 ) AS ge1;
 
 CREATE UNIQUE CLUSTERED INDEX IX_GrupoInicial_id ON #GrupoInicial(id);
@@ -959,16 +970,17 @@ CREATE UNIQUE CLUSTERED INDEX IX_GrupoInicial_id ON #GrupoInicial(id);
 -- disjuntos, então não há sobreposição/duplicidade.
 IF OBJECT_ID('tempdb..#JanelasA2B') IS NOT NULL DROP TABLE #JanelasA2B;
 ;WITH timeline AS (
-    SELECT id, t_inicial AS t, inicial_a2b AS is_a2b, CONVERT(tinyint, 0) AS ord
+    SELECT id, t_inicial AS t, inicial_a2b AS is_a2b, CONVERT(tinyint, 0) AS ord, CONVERT(int, 0) AS log_id
     FROM #GrupoInicial
     UNION ALL
-    SELECT id, ev_epoch AS t, destino_a2b AS is_a2b, CONVERT(tinyint, 1) AS ord
+    SELECT id, ev_epoch AS t, destino_a2b AS is_a2b, CONVERT(tinyint, 1) AS ord, log_id
     FROM #GrupoEventos
 ),
 ordered AS (
     SELECT
         id, t, is_a2b,
-        LEAD(t) OVER (PARTITION BY id ORDER BY t ASC, ord ASC) AS next_t
+        -- log_id: dois eventos de grupo no mesmo segundo (ver DESEMPATE POR act_log.id)
+        LEAD(t) OVER (PARTITION BY id ORDER BY t ASC, ord ASC, log_id ASC) AS next_t
     FROM timeline
 )
 SELECT
@@ -1002,6 +1014,7 @@ IF OBJECT_ID('tempdb..#StatusEvA2B') IS NOT NULL DROP TABLE #StatusEvA2B;
 SELECT
     b.id,
     al.system_time AS ev_epoch,
+    al.log_id,
     CONVERT(nvarchar(400), SUBSTRING(t.txt, a.anchor, 400)) AS resto
 INTO #StatusRaw
 FROM #BaseEscopo_FARC_P4 AS b
@@ -1030,6 +1043,7 @@ CREATE INDEX IX_StatusRaw_id_epoch ON #StatusRaw(id, ev_epoch);
 SELECT
     s.id,
     s.ev_epoch,
+    s.log_id,
     CASE
         WHEN dest.destino COLLATE Latin1_General_CI_AI = N'Em andamento'
           OR dest.destino COLLATE Latin1_General_CI_AI = N'In Progress'
@@ -1076,8 +1090,14 @@ CREATE INDEX IX_StatusEvA2B_id_epoch ON #StatusEvA2B(id, ev_epoch);
 IF OBJECT_ID('tempdb..#SegAtivoA2B') IS NOT NULL DROP TABLE #SegAtivoA2B;
 ;WITH ev AS (
     SELECT
+        -- DESEMPATE POR act_log.id (2026-09-18). O SDM grava o tempo em SEGUNDOS
+        -- inteiros e a automacao registra rajadas de mudanca de status no mesmo
+        -- segundo. Ordenar so pelo segundo deixava a ordem da rajada a criterio do
+        -- SQL Server, e o FARC variava de uma execucao para outra. act_log.id e a
+        -- sequencia de gravacao: na ordem (segundo, id) a cadeia origem->destino fica
+        -- consistente em 16.114 de 16.115 pares medidos.
         id, ev_epoch, destino_ativo, destino_aberto,
-        LEAD(ev_epoch) OVER (PARTITION BY id ORDER BY ev_epoch) AS prox
+        LEAD(ev_epoch) OVER (PARTITION BY id ORDER BY ev_epoch, log_id) AS prox
     FROM #StatusEvA2B
 ),
 prim AS (
@@ -1377,6 +1397,7 @@ IF OBJECT_ID('tempdb..#StatusEventosLead') IS NOT NULL DROP TABLE #StatusEventos
     SELECT
         b.id,
         al.system_time AS ev_epoch,
+        al.log_id,
         CASE
             WHEN CONVERT(nvarchar(max), ISNULL(al.description, N'')) COLLATE Latin1_General_CI_AI LIKE N'%para ''Em andamento''%'
               OR CONVERT(nvarchar(max), ISNULL(al.action_desc,  N'')) COLLATE Latin1_General_CI_AI LIKE N'%para ''Em andamento''%'
@@ -1400,7 +1421,8 @@ SELECT
     id,
     ev_epoch,
     is_em_andamento,
-    LEAD(ev_epoch) OVER (PARTITION BY id ORDER BY ev_epoch) AS prox_epoch
+    -- log_id: rajadas de status no mesmo segundo (ver DESEMPATE POR act_log.id)
+    LEAD(ev_epoch) OVER (PARTITION BY id ORDER BY ev_epoch, log_id) AS prox_epoch
 INTO #StatusEventosLead
 FROM ev;
 

@@ -686,8 +686,8 @@ END AS [nHR_FAIA]
 Essa coluna transforma segundos excedidos em horas.
 
 O valor é **proporcional**, com duas casas decimais: uma fração de hora continua
-sendo fração, não vira hora inteira. É o mesmo padrão do `nHR_FAIA` da Decision
-(`decision/queries/consulta_faia.sql`).
+sendo fração, não vira hora inteira. É o mesmo padrão do `nHR_FAIA` da Decision, que hoje fica no repositório
+próprio da Decision.
 
 Exemplo:
 
@@ -955,15 +955,15 @@ Na semana, conta 11h na segunda (09:00 às 20:00) e 9h na terça (08:00 às 17:0
 Além desta consulta, existe uma **consulta consolidada** feita para alimentar o painel:
 
 ```text
-protect4/powerbi/consulta_faia_farc_power_bi.sql
+powerbi/consulta_faia_farc_power_bi.sql
 ```
 
 O que muda entre as duas:
 
-| | Esta consulta (`protect4/queries/`) | Consulta do painel (`protect4/powerbi/`) |
+| | Esta consulta (`queries/`) | Consulta do painel (`powerbi/`) |
 |---|---|---|
 | O que retorna | só o FAIA | FAIA **e** FARC, na mesma linha |
-| Período | fixo, editado à mão nos parâmetros | dinâmico: os seis últimos ciclos completos |
+| Período | fixo, editado à mão nos parâmetros | dinâmico: os últimos `@PBI_QuantidadeCiclos` ciclos 24-24 completos (padrão 12) |
 | Para que serve | **referência técnica** do cálculo do FAIA | fonte de dados do Power BI |
 | Diagnósticos | tem, com `@MostrarDiagnostico = 1` | não tem: devolve um único resultado |
 

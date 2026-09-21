@@ -20,6 +20,11 @@ Escrita para quem vai **usar** o painel, não para quem escreveu o SQL.
 10. [Feriados e pontos facultativos](#10-feriados-e-pontos-facultativos)
 11. [Conferência](#11-conferência)
 12. [Limitações](#12-limitações)
+13. [Manutenção no Power Query](#13-manutenção-no-power-query)
+
+Há uma versão desta documentação em HTML, para exibir dentro do painel no visual
+**HTML Content**: `docs/documentacao-powerbi-a2b.html`. Ela deriva deste
+arquivo; se os dois divergirem, **vale este**.
 
 ---
 
@@ -45,8 +50,8 @@ Ela devolve **um único resultado**. Não traz tabelas de diagnóstico nem resul
 As **referências técnicas** de cada cálculo continuam sendo as consultas individuais:
 
 ```text
-protect4/queries/consulta_faia_a2b_protect4.sql
-protect4/queries/consulta_farc_a2b_protect4.sql
+queries/consulta_faia_a2b_protect4.sql
+queries/consulta_farc_a2b_protect4.sql
 ```
 
 Elas não foram substituídas. Quando houver dúvida sobre **como** um número é calculado, a resposta está nelas — e nos documentos [faia-calculation.md](faia-calculation.md) e [farc-calculation.md](farc-calculation.md).
@@ -64,6 +69,7 @@ A consulta do Power BI **não reimplementa** nenhum cálculo: ela usa os mesmos 
 5. Deixe **"Adicionar colunas de relação" desmarcado**.
 6. Carregue e, na primeira vez, confira a quantidade de chamados (ver [seção 11](#11-conferência)).
 7. Nas próximas vezes, basta **Atualizar**: o período se ajusta sozinho (ver [seção 5](#5-período-da-consulta)).
+8. Na primeira atualização depois de qualquer mudança no texto SQL, o Power BI pede para **aprovar a execução da consulta nativa**. Isso é esperado.
 
 Não é preciso ajustar datas a cada mês. Não é preciso rodar nenhum script antes.
 
@@ -124,14 +130,36 @@ Ao relatar um problema, informe sempre: **cliente** (Power BI ou SSMS), **banco 
 
 ## 5. Período da consulta
 
-O período é **automático**. Não há data para editar.
+O período é **automático**. Não há data para editar a cada mês.
 
-- A consulta devolve sempre os **seis últimos ciclos completos** da Protect4.
-- Um ciclo vai do **dia 24** de um mês até o **dia 23** do mês seguinte.
+- A consulta devolve os **últimos 12 ciclos completos** da Protect4 — cerca de um ano.
+- Um ciclo vai do **dia 24** de um mês até o **dia 23** do mês seguinte. Essa é a regra de ciclo da **A2B/Protect4**, e ela continua valendo.
 - O ciclo **em andamento não entra** — só entram ciclos já fechados.
+- A quantidade de ciclos é controlada por um único número, `@PBI_QuantidadeCiclos`, que é a **primeira instrução** do SQL. O padrão é `12`. Até 18/09/2026 eram seis, fixos no código.
 - As datas são interpretadas no **horário do Brasil (GMT-3)**. O SDM grava em UTC; a consulta faz a conversão.
+- O intervalo é **semiaberto**: começa às 00:00 do dia 24 do ciclo mais antigo e termina, **exclusivo**, às 00:00 do dia 24 do ciclo em andamento.
 
-**O filtro usa a data de fechamento do chamado** (`close_date`). Ou seja: entra no resultado todo chamado que **fechou** dentro da janela dos seis ciclos.
+**Exemplo, atualizando em 18/09/2026** (antes do dia 24, então o ciclo em andamento começou em 24/08):
+
+```text
+janela = 24/08/2025 00:00  até  24/08/2026 00:00 (exclusivo)
+ciclos = 24/08/2025–23/09/2025  …  24/07/2026–23/08/2026   (12 ciclos)
+ciclo em andamento, EXCLUÍDO:    24/08/2026–23/09/2026
+```
+
+No dia 24 a janela avança um ciclo inteiro, sozinha.
+
+**O filtro usa a data de fechamento do chamado** (`close_date`). Ou seja: entra no resultado todo chamado que **fechou** dentro da janela dos ciclos carregados.
+
+**Mudar a quantidade de ciclos.** Troca-se só o número de `@PBI_QuantidadeCiclos` — o passo a passo no Power Query está na [seção 13](#13-manutenção-no-power-query):
+
+| Cobertura desejada | Linha do SQL |
+|---|---|
+| 6 ciclos | `DECLARE @PBI_QuantidadeCiclos int = 6;` |
+| 12 ciclos (padrão) | `DECLARE @PBI_QuantidadeCiclos int = 12;` |
+| 18 ciclos | `DECLARE @PBI_QuantidadeCiclos int = 18;` |
+
+Voltar N meses a partir de um dia 24 cai sempre em outro dia 24, então a janela começa exatamente no início de um ciclo, qualquer que seja o número. Nenhuma regra de negócio depende dele. Antes de aumentar, confira se os feriados dos ciclos mais antigos estão cadastrados — ver [seção 10](#10-feriados-e-pontos-facultativos).
 
 Um ponto importante:
 
@@ -250,8 +278,8 @@ São **duas** tabelas, e o FAIA e o FARC usam **as mesmas duas** — não existe
 
 | Estrutura | O que guarda | Formato |
 |---|---|---|
-| `#PBI_FeriadosFixos` | Feriados que caem sempre no mesmo dia, todo ano | `'MM-DD'` |
-| `#PBI_FeriadosPorData` | Feriados móveis e pontos facultativos do TCU | `'AAAA-MM-DD'` |
+| `#PBI_FeriadosFixos` | Feriados que caem sempre no mesmo dia, todo ano | `'MM-DD'` — ex.: `'12-25'` |
+| `#PBI_FeriadosPorData` | Feriados móveis e pontos facultativos do TCU | `'AAAA-MM-DD'` — ex.: `'2026-06-05'` |
 
 A diferença é só essa: o que se repete todo ano entra **uma vez** em `#PBI_FeriadosFixos` e vale para sempre; o que muda de data a cada ano (Carnaval, Páscoa, emendas) entra em `#PBI_FeriadosPorData`, **ano a ano**.
 
@@ -263,6 +291,8 @@ O que entra em cada lista:
 
 **Sábados e domingos não devem ser cadastrados.** A consulta já os descarta sozinha, pelo dia da semana. Cadastrar um fim de semana não muda o resultado, só polui a lista.
 
+**Fonte das datas.** Só fonte **oficial do TCU**: a portaria anual do Presidente do TCU que "divulga os feriados nacionais e define os dias de ponto facultativo" do ano, publicada no Boletim do TCU, **e todas as portarias que a alterarem**. Consulte em `pesquisa.apps.tcu.gov.br`, base **Normas**: a ficha da portaria anual lista, em "Alterada por", as alterações. Não use calendário civil genérico nem de outro órgão.
+
 ### Como atualizar
 
 1. Abra a consulta `consulta_faia_farc_power_bi.sql`.
@@ -273,24 +303,26 @@ O que entra em cada lista:
 6. Cadastre os feriados e pontos facultativos **antes** de atualizar o período correspondente no Power BI.
 7. Salve o SQL e valide um chamado P3/P4/P5 que atravesse a nova data.
 
-Um feriado móvel de 2027 entra assim:
+Uma linha de data específica tem este formato — o exemplo é uma data que já está cadastrada:
 
 ```sql
-INSERT INTO #PBI_FeriadosPorData (data, descricao)
-VALUES
-    ('2027-02-08', N'Carnaval - ponto facultativo'),
-    ('2027-03-26', N'Paixão de Cristo');
+    ('2026-06-05', N'Ponto facultativo - emenda após Corpus Christi'),
 ```
 
-Um feriado fixo novo entraria na outra tabela, sem ano:
+A última linha de cada `VALUES` termina em `;`, não em vírgula. Registre num comentário a portaria de origem.
 
-```sql
-INSERT INTO #PBI_FeriadosFixos (mes_dia, descricao)
-VALUES
-    ('06-11', N'Exemplo de feriado fixo');
-```
+Um feriado fixo entraria na outra tabela, sem ano, no formato `('MM-DD', N'descrição')`.
 
-> **Manutenção anual.** Os feriados fixos já estão prontos e não precisam de nada. O que precisa de atenção **todo ano** é `#PBI_FeriadosPorData`: as datas móveis e os pontos facultativos do TCU do ano seguinte precisam ser incluídos antes de o painel passar a cobrir aquele ano. Hoje a lista vai **até 2026** (ver [seção 12](#12-limitações)). No fim do bloco já existe um comentário reservando o lugar de 2027 — é ali que as datas do ano novo devem entrar, assim que o TCU publicar a portaria.
+> **Manutenção anual.** Os feriados fixos já estão prontos e não precisam de nada. O que precisa de atenção **todo ano** é `#PBI_FeriadosPorData`: as datas móveis e os pontos facultativos do TCU de cada ano coberto pela janela. No fim do bloco já existe um comentário reservando o lugar de 2027.
+
+**Situação atual do cadastro.** `#PBI_FeriadosPorData` cobre a janela de 12 ciclos: os pontos facultativos de 2025 a partir de outubro e **2026 completo**, conferidos contra as portarias do TCU.
+
+| Ano | Portaria anual | Alterações | Datas por data específica no painel |
+|---|---|---|---|
+| 2025 | Portaria-TCU nº 10, de 13/01/2025 | nº 67, nº 157 e nº 176 de 2025 | 27/10, 21/11, 24/12, 26/12, 31/12 |
+| 2026 | Portaria-TCU nº 1, de 08/01/2026 | nº 93 de 2026 | 02/01, 16–18/02, 02/04, 03/04, 05/04, 20/04, 04/06, 05/06, 29/06, 28/10, 24/12, 31/12 |
+
+O PDF da portaria de 2026 guardado em `Documentos e Relatórios` é a versão **original**: a data de 29/06/2026 veio depois, pela Portaria nº 93/2026, e não aparece nele. As datas de 2025 anteriores a outubro não estão cadastradas porque nenhum chamado da janela padrão passa por elas.
 
 As consultas individuais (`consulta_faia_a2b_protect4.sql` e `consulta_farc_a2b_protect4.sql`) têm as mesmas duas listas, com os nomes `#FeriadosFixos` e `#FeriadosPorData`. Ao incluir uma data nova, inclua **nas três**, senão os números do painel e os das consultas de referência passam a divergir.
 
@@ -315,7 +347,7 @@ COUNT(*) deve ser igual a COUNT(DISTINCT SDM)
 
 Se os dois números forem diferentes, existe duplicidade e o resultado não deve ser usado.
 
-**2. Quantidade de linhas.** Compare o total com o que você espera para seis ciclos. Uma variação grande de um mês para o outro merece investigação.
+**2. Quantidade de linhas.** Compare o total com a atualização anterior. A janela só muda no dia 24, quando avança um ciclo inteiro; fora disso, o total deve ser estável. Uma variação grande merece investigação.
 
 **3. Datas.** `Data Abertura` deve ser sempre menor ou igual a `Data Captura`, que deve ser menor ou igual a `Data de Fechamento`. Chamados sem captura ficam com `Data Captura` vazia — isso é normal.
 
@@ -356,8 +388,84 @@ Se os dois números forem diferentes, existe duplicidade e o resultado não deve
 - chamados com reposse (várias janelas de posse) e chamados sem captura;
 - a contagem de logs contra a `act_log` real.
 
+**Validado em execução no SQL Server** (2026-09-18) — ampliação de 6 para 12 ciclos:
+
+- a janela de 12 ciclos vai de `24/08/2025` a `24/08/2026` exclusivo, medida em 18/09/2026;
+- 2.410 linhas e 2.410 SDMs distintos, sem duplicidade;
+- nos **6 ciclos que já existiam**, com a mesma ordenação de eventos nas duas versões: 0 SDMs removidos, 0 SDMs extras, 0 colunas diferentes, mesmo SHA256 das linhas antes e depois;
+- os 6 ciclos novos (24/08/2025 a 23/02/2026) acrescentaram 1.207 chamados.
+
+**Correções aplicadas em 2026-09-18 (2ª)** — validadas em execução:
+
+- **FARC determinístico.** Eventos gravados no mesmo segundo passaram a ser ordenados por `act_log.id`, a sequência de gravação do log, nos quatro pontos que antes ordenavam só pelo segundo. Três execuções seguidas do painel deram resultado idêntico. Na ordem (segundo, `id`), a cadeia de status fica consistente — a origem de cada evento é o destino do anterior — em 16.114 de 16.115 pares medidos.
+- **Calendário completo na janela.** Incluídos `2025-10-27`, `2025-11-21`, `2025-12-26` e `2026-06-29`, das portarias oficiais do TCU.
+- **Efeito:** 32 chamados mudam só por causa do calendário, e só em colunas de tempo. Em comparação com uma execução específica da versão anterior de 12 ciclos, 59 chamados apresentaram alguma diferença; nessa execução, `nHR_FARC`/`FARC` mudaram em 5 e uma meta mudou: `1492048`, de `Não Atende` para `Atende` — o valor anterior vinha da ordem errada numa rajada de status. Como a versão anterior do FARC era não determinística, esse total não é fixo entre execuções. Isoladamente, a atualização do calendário afeta 32 chamados, enquanto a correção do desempate do FARC afeta de 17 a 29 chamados, conforme a execução anterior usada na comparação. Nenhum FAIA, `nHR_FAIA` ou meta do FAIA muda.
+
 **Limitações conhecidas:**
 
+- ~~**o FARC não é determinístico em alguns chamados.**~~ *Corrigido em 2026-09-18 (2ª); texto mantido como registro.* Com a mesma consulta e a mesma janela, execuções seguidas deram `Tempo de Atendimento` diferente em 25 a 33 dos 1.203 chamados dos 6 ciclos antigos — a maioria P2 —, e num deles (`1492048`) a `Meta Atendimento` trocou. A causa: eventos de status ou de grupo no **mesmo segundo**, ordenados sem desempate — nos dois `LEAD(ev_epoch) … ORDER BY ev_epoch` (segmentos ativos e intervalos "Em andamento") e no `TOP (1)` do estado de grupo inicial. Qual evento fica com o trecho seguinte depende da ordem física escolhida pelo SQL Server naquela execução. Com desempate fixo nesses três pontos, duas execuções deram resultado idêntico. É um defeito **anterior** à ampliação, presente também com 6 ciclos. Corrigi-lo exige escolher o desempate — decisão de negócio —, então **não foi corrigido**.
+- ~~**datas oficiais do TCU ausentes do calendário**~~ *(corrigido em 2026-09-18 (2ª); texto mantido como registro)*, dentro da janela de 12 ciclos: `2025-10-27` (Dia do Servidor, Portaria-TCU nº 10/2025), `2025-11-21` (Portaria-TCU nº 157/2025), `2025-12-26` (Portaria-TCU nº 176/2025) e `2026-06-29` (Portaria-TCU nº 93/2026). A última cai nos ciclos já validados. Não foram incluídas porque alteram resultado e a regra da A2B não pode mudar sem decisão.
+
 - os pontos facultativos de **2027 ainda não estão cadastrados**. A partir de janeiro de 2027 o calendário comercial ficará incompleto até que sejam incluídos.
+- o FAIA e o FARC individuais (`queries/`) têm listas próprias de feriados. Receberam as mesmas quatro datas, mas a do FAIA individual continua **sem** `2025-12-24` e `2025-12-31`, uma diferença anterior que não fez parte desta correção.
+- nas colunas compartilhadas `Data Abertura` e `Data Captura`, o painel usa o valor da metade FAIA; em 9 dos 234 chamados do ciclo 24/03–23/04/2026 ele difere do FARC individual. A diferença já existia antes das correções. As colunas do FARC (`Tempo de Atendimento`, `Meta`, `nHR_FARC`, `FARC`) batem nos 234.
 - a regra de arredondamento (proporcional, em vez de "hora ou fração") **ainda não foi confirmada contra o edital**. Se o edital exigir "hora ou fração", os quatro indicadores do projeto precisarão ser revistos.
 - o calendário de feriados desta consulta inclui `2025-12-24` e `2025-12-31`, que **não** estão na consulta individual do FAIA. Enquanto essa diferença existir, um chamado cuja janela comercial toque essas duas datas pode ter FAIA ligeiramente diferente entre as duas consultas.
+
+---
+
+## 13. Manutenção no Power Query
+
+O texto SQL da consulta fica guardado na etapa **Fonte** do Power Query. É ali
+que se muda a quantidade de ciclos e onde se cola a consulta depois de mexer
+nos feriados.
+
+### Onde fica o texto SQL
+
+1. No Power BI Desktop: **Página Inicial → Transformar dados**. Abre o Power Query.
+2. No painel **Consultas**, à esquerda, selecione a consulta da A2B.
+3. No painel **Configurações da consulta**, à direita, em **Etapas aplicadas**, clique na **engrenagem** da etapa **Fonte**.
+4. Abre a janela **Banco de dados SQL Server**. Em **Opções avançadas**, o campo **Instrução SQL** contém a consulta inteira.
+5. Depois de editar: **OK → Fechar e aplicar**. Na primeira atualização o Power BI pede para **aprovar a consulta nativa** — aprove.
+
+> Não existe um parâmetro do Power BI separado: a quantidade de ciclos é uma linha do próprio SQL. Montar o SQL por concatenação em M para expor um parâmetro faria a engrenagem da etapa Fonte deixar de mostrar o texto editável, e o painel passaria a depender de código M que não está versionado neste repositório.
+
+### Mudar a quantidade de ciclos
+
+A primeira instrução do SQL, logo no topo da caixa **Instrução SQL**, é:
+
+```sql
+DECLARE @PBI_QuantidadeCiclos int = 12;
+```
+
+1. Abra a etapa **Fonte** como acima.
+2. Troque `12` pelo número de ciclos — por exemplo `6` ou `18`.
+3. **OK → Fechar e aplicar**, aprove a consulta nativa e atualize.
+
+É o único número que muda. A regra de ciclo 24-24 não muda.
+
+Se a mudança for **permanente**, faça a mesma troca em
+`powerbi/consulta_faia_farc_power_bi.sql` e registre no Histórico Mestre da A2B,
+para o repositório continuar igual ao painel.
+
+### Atualizar feriados
+
+O bloco `[S.2] Feriados e pontos facultativos` fica no meio de um texto longo,
+e a caixa **Instrução SQL** não tem busca. O caminho seguro é editar o
+**arquivo** e colar de volta:
+
+1. Confirme a data na fonte oficial do TCU (seção 10).
+2. Abra `powerbi/consulta_faia_farc_power_bi.sql` num editor e procure `[S.2]`.
+3. **Adicionar:** inclua a linha na tabela certa — `#PBI_FeriadosFixos` (`'MM-DD'`) ou `#PBI_FeriadosPorData` (`'AAAA-MM-DD'`).
+4. **Corrigir:** edite a data ou a descrição na linha existente.
+5. **Remover:** apague a linha inteira e confira a vírgula da linha anterior.
+6. Faça a mesma alteração em `queries/consulta_faia_a2b_protect4.sql` e `queries/consulta_farc_a2b_protect4.sql` (tabelas `#FeriadosFixos` e `#FeriadosPorData`), para as referências técnicas não divergirem do painel.
+7. Copie o arquivo do Power BI **inteiro** e cole no campo **Instrução SQL** da etapa **Fonte**, substituindo o texto anterior.
+8. **OK → Fechar e aplicar**, aprove a consulta nativa e **atualize**.
+
+**Cuidados.**
+
+- Cada data aparece **uma vez só** por tabela. Uma data repetida faz a atualização falhar com `Violation of PRIMARY KEY constraint`, e a mensagem cita a data.
+- Um dia cadastrado deixa de contar como tempo **comercial** (P3, P4 e P5). P1 e P2 contam corrido e não mudam.
+- Os valores só mudam depois de **atualizar**. Como o cálculo usa a vida inteira de cada chamado, uma data nova pode alterar chamados de ciclos já carregados.
+- Incluir uma data nova **muda resultado**. Na A2B, isso exige validação antes de ir para o painel.

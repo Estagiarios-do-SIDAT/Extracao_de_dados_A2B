@@ -139,6 +139,18 @@ CREATE TABLE #FeriadosPorData (
     descricao nvarchar(200)  NOT NULL
 );
 
+-- Pontos facultativos de 2025 no TCU.
+-- Fonte: Portaria-TCU n. 10/2025 e alteracoes n. 157/2025 e n. 176/2025
+-- (Boletim do TCU; autenticidade em www.tcu.gov.br/autenticidade, codigos
+-- 77411949, 79190602 e 79506777). 27/10, 21/11 e 26/12 incluidos em 2026-09-18.
+-- 24/12/2025 e 31/12/2025 NAO estao aqui (existem no painel e no FARC individual);
+-- a diferenca e anterior e esta registrada na documentacao.
+INSERT INTO #FeriadosPorData (data, descricao)
+VALUES
+    ('2025-10-27', N'Dia do Servidor Público federal - ponto facultativo'),               -- Portaria-TCU n. 10/2025, inciso XIII.
+    ('2025-11-21', N'Ponto facultativo - sexta-feira após Consciência Negra'),          -- Portaria-TCU n. 157/2025.
+    ('2025-12-26', N'Ponto facultativo - sexta-feira após o Natal');                     -- Portaria-TCU n. 176/2025.
+
 -- Feriados móveis/diferenciados de 2026.
 INSERT INTO #FeriadosPorData (data, descricao)
 VALUES
@@ -157,6 +169,7 @@ VALUES
     ('2026-04-20', N'Ponto facultativo - emenda antes de Tiradentes'),                   -- Ligado ao feriado de Tiradentes, no dia seguinte: 2026-04-21.
     ('2026-06-04', N'Corpus Christi - ponto facultativo'),                               -- Ligado a Corpus Christi.
     ('2026-06-05', N'Ponto facultativo - emenda após Corpus Christi'),                   -- Ligado a Corpus Christi, no dia anterior: 2026-06-04.
+    ('2026-06-29', N'Ponto facultativo - jogo da Seleção Brasileira na Copa do Mundo FIFA 2026'), -- Portaria-TCU n. 93/2026 (codigo 80587034), incluido em 2026-09-18.
     ('2026-10-28', N'Dia do Servidor Público federal - ponto facultativo'),              -- Ligado ao Dia do Servidor Público federal.
     ('2026-12-24', N'Ponto facultativo - véspera do Natal'),                             -- Ligado ao feriado de Natal, no dia seguinte: 2026-12-25.
     ('2026-12-31', N'Ponto facultativo - véspera da Confraternização Universal');         -- Ligado ao feriado de Confraternização Universal, no dia seguinte: 2027-01-01.

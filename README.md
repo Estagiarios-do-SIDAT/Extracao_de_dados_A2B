@@ -10,29 +10,25 @@ Este repositório atende **somente a A2B / Protect4**. COI e Decision têm repos
 
 ```text
 .
-├── protect4/
-│   ├── queries/
-│   │   ├── consulta_faia_a2b_protect4.sql
-│   │   └── consulta_farc_a2b_protect4.sql
-│   ├── powerbi/
-│   │   └── consulta_faia_farc_power_bi.sql
-│   ├── docs/
-│   │   ├── faia-calculation.md
-│   │   ├── farc-calculation.md
-│   │   └── powerbi-query.md
-│   └── analysis/
-│       └── planilhas de comparação
-│
+├── queries/
+│   ├── consulta_faia_a2b_protect4.sql      referência técnica do FAIA
+│   └── consulta_farc_a2b_protect4.sql      referência técnica do FARC
+├── powerbi/
+│   └── consulta_faia_farc_power_bi.sql     fonte do painel: FAIA e FARC, últimos 12 ciclos 24-24
 ├── docs/
-│   └── project-context/
-│       └── FAIA-FARC-HISTORICO-CONTEXTO-MESTRE.md   Histórico Mestre da A2B
-│
+│   ├── faia-calculation.md                 como o FAIA é calculado
+│   ├── farc-calculation.md                 como o FARC é calculado
+│   ├── powerbi-query.md                    a consulta do painel: período, manutenção, colunas
+│   └── documentacao-powerbi-a2b.html       leitura dentro do painel (visual HTML Content)
+├── analysis/
+│   └── planilhas de comparação
+├── project-context/
+│   └── A2B-HISTORICO-CONTEXTO-MESTRE.md    Histórico Mestre da A2B
 ├── support/
 │   ├── consulta_logs_chamados_listados.sql
 │   ├── consulta_status_chamados.sql
 │   ├── consulta_status_hold.sql
 │   └── consulta_tipos_chamado.sql
-│
 ├── README.md
 └── .git/
 ```
@@ -63,18 +59,18 @@ A consulta calcula o tempo considerado válido para o atendimento do chamado e c
 
 A Protect4 tem dois grupos de arquivos, com finalidades diferentes.
 
-**`protect4/queries/` — consultas individuais.** São as **referências técnicas** de cada indicador. É onde a regra de cálculo mora e é o que se consulta quando há dúvida sobre um número.
+**`queries/` — consultas individuais.** São as **referências técnicas** de cada indicador. É onde a regra de cálculo mora e é o que se consulta quando há dúvida sobre um número.
 
 | Arquivo | Finalidade |
 |---|---|
-| `protect4/queries/consulta_faia_a2b_protect4.sql` | Calcula o FAIA da A2B/Protect4 |
-| `protect4/queries/consulta_farc_a2b_protect4.sql` | Calcula o FARC da A2B/Protect4 |
+| `queries/consulta_faia_a2b_protect4.sql` | Calcula o FAIA da A2B/Protect4 |
+| `queries/consulta_farc_a2b_protect4.sql` | Calcula o FARC da A2B/Protect4 |
 
-**`protect4/powerbi/` — consulta consolidada do painel.** Reúne os dois indicadores para consumo pelo Power BI.
+**`powerbi/` — consulta consolidada do painel.** Reúne os dois indicadores para consumo pelo Power BI.
 
 | Arquivo | Finalidade |
 |---|---|
-| `protect4/powerbi/consulta_faia_farc_power_bi.sql` | FAIA e FARC juntos, para o painel |
+| `powerbi/consulta_faia_farc_power_bi.sql` | FAIA e FARC juntos, para o painel |
 
 Ela:
 
@@ -84,21 +80,22 @@ Ela:
 - mantém as colunas específicas de cada indicador;
 - foi estruturada para consumo pelo Power BI (um único resultado, sem `GO`, sem diagnósticos, tipos nativos);
 - usa `nHR_FAIA` e `nHR_FARC` **proporcionais e decimais**;
-- cobre automaticamente os **seis últimos ciclos completos**.
+- cobre automaticamente os **últimos 12 ciclos completos** (ciclo do dia 24 ao dia 23 do mês seguinte). A quantidade é `@PBI_QuantidadeCiclos`, a primeira instrução do SQL.
 
 > A consulta consolidada **não substitui** as consultas individuais como referência técnica. Ela reaproveita os mesmos motores de cálculo; não reimplementa nenhuma regra.
 
-**`protect4/docs/` — explicações.**
+**`docs/` — explicações.**
 
 ```text
-protect4/docs/faia-calculation.md    como o FAIA é calculado
-protect4/docs/farc-calculation.md    como o FARC é calculado
-protect4/docs/powerbi-query.md       colunas e uso da consulta do painel
+docs/faia-calculation.md             como o FAIA é calculado
+docs/farc-calculation.md             como o FARC é calculado
+docs/powerbi-query.md                a consulta do painel: período, manutenção de ciclos e feriados, colunas
+docs/documentacao-powerbi-a2b.html   a mesma documentação do painel, para o visual HTML Content
 ```
 
-[Documentação da consulta consolidada do Power BI](protect4/docs/powerbi-query.md)
+[Documentação da consulta consolidada do Power BI](docs/powerbi-query.md)
 
-As planilhas em `protect4/analysis/` guardam as comparações usadas na validação dos resultados.
+As planilhas em `analysis/` guardam as comparações usadas na validação dos resultados.
 
 ## Consultas de apoio
 
@@ -127,17 +124,21 @@ Quando houver divergência, use `@MostrarDiagnostico = 1` para retornar tabelas 
 
 ## Parâmetros comuns
 
-As consultas normalmente possuem parâmetros como:
+**Consultas individuais** (`queries/`):
 
 ```sql
-DECLARE @InicioBrasil datetime2(0)
-DECLARE @FimBrasil    datetime2(0)
-DECLARE @MostrarDiagnostico bit = 0
+DECLARE @InicioBrasil datetime2(0) = '2026-03-24 00:00:00';  -- inclusivo
+DECLARE @FimBrasil    datetime2(0) = '2026-04-23 23:59:59';  -- INCLUSIVO
+DECLARE @MostrarDiagnostico bit = 0;
 ```
 
-- `@InicioBrasil` e `@FimBrasil` definem o período analisado.
-- `@MostrarDiagnostico = 0` retorna apenas o resultado final.
-- `@MostrarDiagnostico = 1` retorna informações extras para investigação.
+- `@InicioBrasil` e `@FimBrasil` definem o período, pela data de fechamento. O fim é **inclusivo**, por isso termina em `23:59:59`. Para um ciclo, use do dia 24 ao dia 23.
+- `@MostrarDiagnostico = 0` retorna apenas o resultado final; `1` retorna informações extras para investigação.
+
+**Consulta do painel** (`powerbi/`):
+
+- `@PBI_QuantidadeCiclos` — quantidade de ciclos 24-24 completos, padrão `12`. É o único parâmetro de período.
+- Feriados: tabelas `#PBI_FeriadosFixos` (`'MM-DD'`) e `#PBI_FeriadosPorData` (`'AAAA-MM-DD'`), no bloco `[S.2]`. As consultas individuais têm listas próprias (`#FeriadosFixos`, `#FeriadosPorData`); toda data nova deve entrar nas três, e só com fonte oficial do TCU. Passo a passo em [`docs/powerbi-query.md`](docs/powerbi-query.md#13-manutenção-no-power-query).
 
 ## Fluxo de validação
 
@@ -151,21 +152,24 @@ As planilhas de análise servem para registrar se os resultados da consulta bate
 
 ## Convenções do projeto
 
-- `protect4/queries/`: consultas executáveis do indicador da A2B/Protect4.
-- `protect4/docs/`: explicações das regras e dos cálculos.
-- `protect4/analysis/`: arquivos de comparação e validação.
+- `queries/`: consultas individuais, referência técnica de cada indicador.
+- `powerbi/`: consulta do painel.
+- `docs/`: explicações das regras, dos cálculos e do painel, inclusive a versão HTML.
+- `analysis/`: arquivos de comparação e validação.
+- `project-context/`: Histórico Mestre da A2B.
 - `support/`: consultas auxiliares.
 
-Ao alterar uma regra de cálculo, atualize também a documentação correspondente em `protect4/docs/`.
+Ao alterar uma regra de cálculo, atualize também a documentação correspondente em `docs/`.
 
-Ao validar um novo ciclo, salve a planilha na pasta `protect4/analysis/`.
+Ao validar um novo ciclo, salve a planilha na pasta `analysis/`.
 
 ## Histórico Mestre
 
 O histórico do projeto fica em
-[`docs/project-context/FAIA-FARC-HISTORICO-CONTEXTO-MESTRE.md`](docs/project-context/FAIA-FARC-HISTORICO-CONTEXTO-MESTRE.md).
+[`project-context/A2B-HISTORICO-CONTEXTO-MESTRE.md`](project-context/A2B-HISTORICO-CONTEXTO-MESTRE.md).
 
 - Ele é **append-only**: cada intervenção vira uma seção nova, e seções antigas não são reescritas.
 - Trabalhos da A2B atualizam **somente** este histórico. COI e Decision mantêm o seu, nos respectivos repositórios.
-- As seções anteriores à separação dos repositórios foram herdadas do documento compartilhado da época de `Queries` e contêm registros de Decision e COI. Elas são mantidas como **legado histórico**, sem reescrita.
+- As seções anteriores à separação dos repositórios foram herdadas do documento compartilhado da época de `Queries` e contêm registros de Decision e COI. Elas são mantidas como **legado histórico**, sem reescrita. Caminhos citados nelas (`protect4/…`, `docs/project-context/`, …) descrevem a estrutura da época.
+- O arquivo se chamava `FAIA-FARC-HISTORICO-CONTEXTO-MESTRE.md`, nome herdado do documento compartilhado; foi renomeado em 2026-09-18.
 

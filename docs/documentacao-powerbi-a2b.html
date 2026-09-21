@@ -1,0 +1,115 @@
+<!-- Documentacao do painel FAIA/FARC da A2B/Protect4 para o visual HTML Content.
+Fonte oficial: docs/powerbi-query.md. Em caso de divergencia, vale ela.
+Sem aspas duplas neste arquivo: pode ser colado dentro de uma medida DAX. -->
+<div style='font-family:Segoe UI,Arial,sans-serif;font-size:13px;line-height:1.5;color:#1f2328;background:#ffffff;padding:16px;max-width:900px'>
+
+<h1 style='font-size:20px;margin:0 0 4px 0;color:#0b3d6b'>Painel FAIA e FARC — A2B / Protect4</h1>
+<p style='margin:0 0 12px 0;color:#57606a'>Como a fonte de dados deste painel funciona e como mantê-la. Atualizado em 18/09/2026.</p>
+
+<div style='background:#eef5fc;border-left:4px solid #0b5cad;padding:10px 12px;margin:0 0 16px 0'>
+<b>Em uma linha:</b> o painel mostra os chamados da A2B/Protect4 <b>encerrados nos últimos 12 ciclos completos</b> — cada ciclo vai do dia 24 ao dia 23 do mês seguinte —, com FAIA e FARC na mesma linha. A janela avança sozinha a cada dia 24.
+</div>
+
+<h2 style='font-size:16px;color:#0b3d6b;border-bottom:1px solid #d0d7de;padding-bottom:4px'>1. O que é medido</h2>
+<ul style='margin-top:4px'>
+<li><b>FAIA</b> — quanto se <b>esperou até alguém começar a atender</b>: da entrada do chamado no grupo Fornecedores - A2B até a primeira ida para Em andamento. Se o chamado nasceu no grupo, conta da abertura. FAIA = nHR_FAIA × <b>0,1</b>.</li>
+<li><b>FARC</b> — quanto tempo <b>se trabalhou no chamado até resolvê-lo</b>: soma o tempo ativo em todas as janelas de posse do A2B. FARC = nHR_FARC × <b>0,3</b>.</li>
+<li>São indicadores independentes: um chamado pode atender um e estourar o outro.</li>
+<li>O <b>nHR é proporcional</b>: 1h30 de atraso aparece como <b>1,50</b>, nunca como 2.</li>
+</ul>
+
+<h2 style='font-size:16px;color:#0b3d6b;border-bottom:1px solid #d0d7de;padding-bottom:4px'>2. De onde vêm os dados</h2>
+<p>Base <b>mdb</b> do CA Service Desk Manager, lida <b>somente para leitura</b>. O SQL roda no SQL Server; o Power BI apenas envia o texto e importa o resultado. Tabelas principais: call_req (o chamado), act_log (histórico de eventos), ca_contact (pessoas e grupos), cr_stat, pri e prob_ctg (dicionários de status, severidade e categoria).</p>
+
+<h2 style='font-size:16px;color:#0b3d6b;border-bottom:1px solid #d0d7de;padding-bottom:4px'>3. Relação com as consultas de referência</h2>
+<p>As referências técnicas de cada cálculo são as consultas individuais <b>queries/consulta_faia_a2b_protect4.sql</b> e <b>queries/consulta_farc_a2b_protect4.sql</b>. A consulta do painel, <b>powerbi/consulta_faia_farc_power_bi.sql</b>, usa os mesmos dois motores lado a lado e junta os resultados; <b>não reimplementa</b> nenhuma regra. As diferenças são de período (automático no painel), de saída (um único resultado) e de calendário: o painel usa uma lista de feriados unificada para FAIA e FARC.</p>
+
+<h2 style='font-size:16px;color:#0b3d6b;border-bottom:1px solid #d0d7de;padding-bottom:4px'>4. Período: últimos 12 ciclos 24-24</h2>
+<table style='border-collapse:collapse;width:100%;margin:6px 0 10px 0'>
+<tr><td style='border:1px solid #d0d7de;padding:4px 6px;background:#f6f8fa;width:30%'><b>Ciclo</b></td><td style='border:1px solid #d0d7de;padding:4px 6px'>do dia 24 de um mês ao dia 23 do mês seguinte — regra da A2B/Protect4</td></tr>
+<tr><td style='border:1px solid #d0d7de;padding:4px 6px;background:#f6f8fa'><b>Quantidade</b></td><td style='border:1px solid #d0d7de;padding:4px 6px'>12 ciclos completos (parâmetro @PBI_QuantidadeCiclos)</td></tr>
+<tr><td style='border:1px solid #d0d7de;padding:4px 6px;background:#f6f8fa'><b>Ciclo em andamento</b></td><td style='border:1px solid #d0d7de;padding:4px 6px'>nunca entra</td></tr>
+<tr><td style='border:1px solid #d0d7de;padding:4px 6px;background:#f6f8fa'><b>Filtro</b></td><td style='border:1px solid #d0d7de;padding:4px 6px'>data de <b>fechamento</b> do chamado, no horário do Brasil (GMT-3)</td></tr>
+<tr><td style='border:1px solid #d0d7de;padding:4px 6px;background:#f6f8fa'><b>Exemplo</b></td><td style='border:1px solid #d0d7de;padding:4px 6px'>atualizando em 18/09/2026: de 24/08/2025 00:00 a 24/08/2026 00:00 (exclusivo); o ciclo 24/08/2026–23/09/2026 fica de fora</td></tr>
+</table>
+<ul style='margin-top:4px'>
+<li>O período <b>seleciona</b> quais chamados entram. Ele <b>não corta</b> os tempos: um chamado aberto antes da janela é calculado sobre a vida inteira.</li>
+<li>Até 18/09/2026 eram seis ciclos, fixos no código. A ampliação para 12 foi validada: com a mesma ordenação de eventos, os seis ciclos que já existiam ficaram idênticos.</li>
+</ul>
+
+<h2 style='font-size:16px;color:#0b3d6b;border-bottom:1px solid #d0d7de;padding-bottom:4px'>5. Regras de cálculo que valem a pena lembrar</h2>
+<ul style='margin-top:4px'>
+<li><b>Calendário por severidade:</b> P1 e P2 contam <b>corrido</b> (24h, com fim de semana e feriado); P3, P4 e P5 contam <b>comercial</b> (segunda a sexta, 08:00–20:00, sem feriados e pontos facultativos do TCU).</li>
+<li><b>Posse e reposse:</b> a contagem começa quando o chamado entra no grupo Fornecedores - A2B. Se ele sai e volta, o FARC soma todas as janelas de posse; tempo em outro grupo não conta.</li>
+<li><b>Uma linha por chamado.</b> Um chamado que só existe no escopo do FARC aparece com as colunas do FAIA vazias; ele não some.</li>
+</ul>
+
+<h2 style='font-size:16px;color:#0b3d6b;border-bottom:1px solid #d0d7de;padding-bottom:4px'>6. Saída</h2>
+<table style='border-collapse:collapse;width:100%;margin:6px 0 10px 0'>
+<tr style='background:#f6f8fa'><th style='text-align:left;border:1px solid #d0d7de;padding:4px 6px'>Grupo</th><th style='text-align:left;border:1px solid #d0d7de;padding:4px 6px'>Colunas principais</th></tr>
+<tr><td style='border:1px solid #d0d7de;padding:4px 6px'>Chamado</td><td style='border:1px solid #d0d7de;padding:4px 6px'>SDM, Tipo Chamado, Severidade, Status, Categoria, Data Abertura, Data Captura, Data de Fechamento</td></tr>
+<tr><td style='border:1px solid #d0d7de;padding:4px 6px'>FAIA</td><td style='border:1px solid #d0d7de;padding:4px 6px'>Tempo Primeiro Atendimento, Primeiro Atendimento Excedido, Meta Primeiro Atendimento, nHR_FAIA, FAIA</td></tr>
+<tr><td style='border:1px solid #d0d7de;padding:4px 6px'>FARC</td><td style='border:1px solid #d0d7de;padding:4px 6px'>Tempo de Atendimento, Tempo Atendimento Excedido, Meta Atendimento, nHR_FARC, FARC</td></tr>
+</table>
+<p><b>Use as colunas terminadas em (s) em medidas.</b> As colunas HH:MM:SS são texto e servem só para leitura.</p>
+
+<h2 style='font-size:16px;color:#0b3d6b;border-bottom:1px solid #d0d7de;padding-bottom:4px'>7. Manutenção no Power Query</h2>
+<p><b>Onde fica o SQL:</b> Página Inicial › <b>Transformar dados</b> › selecione a consulta da A2B › em <b>Etapas aplicadas</b>, clique na <b>engrenagem</b> da etapa <b>Fonte</b> › <b>Opções avançadas</b> › campo <b>Instrução SQL</b>. Depois de editar: <b>OK</b> › <b>Fechar e aplicar</b>, e aprove a <b>consulta nativa</b> quando o Power BI pedir.</p>
+
+<h3 style='font-size:14px;margin:10px 0 4px 0'>Aumentar ou reduzir a quantidade de ciclos</h3>
+<p>A primeira instrução do SQL, no topo do campo, é:</p>
+<p style='font-family:Consolas,monospace;background:#f6f8fa;border:1px solid #d0d7de;padding:6px 8px'>DECLARE @PBI_QuantidadeCiclos int = 12;</p>
+<table style='border-collapse:collapse;margin:6px 0 10px 0'>
+<tr style='background:#f6f8fa'><th style='text-align:left;border:1px solid #d0d7de;padding:4px 10px'>Cobertura</th><th style='text-align:left;border:1px solid #d0d7de;padding:4px 10px'>Troque o número para</th></tr>
+<tr><td style='border:1px solid #d0d7de;padding:4px 10px'>6 ciclos</td><td style='border:1px solid #d0d7de;padding:4px 10px'>6</td></tr>
+<tr><td style='border:1px solid #d0d7de;padding:4px 10px'>12 ciclos (padrão)</td><td style='border:1px solid #d0d7de;padding:4px 10px'>12</td></tr>
+<tr><td style='border:1px solid #d0d7de;padding:4px 10px'>18 ciclos</td><td style='border:1px solid #d0d7de;padding:4px 10px'>18</td></tr>
+</table>
+<p>É o <b>único</b> número que muda; a regra de ciclo 24-24 continua a mesma. Se a mudança for permanente, faça a mesma troca no arquivo do repositório e registre no Histórico Mestre da A2B.</p>
+
+<h3 style='font-size:14px;margin:10px 0 4px 0'>Atualizar feriados e pontos facultativos</h3>
+<p>Ficam dentro do SQL, no bloco <b>[S.2] Feriados e pontos facultativos</b>, e valem para FAIA e FARC:</p>
+<ul style='margin-top:4px'>
+<li><b>#PBI_FeriadosFixos</b> — mesmo dia todo ano, formato <b>'MM-DD'</b>. Ex.: ('12-25', N'Natal'),</li>
+<li><b>#PBI_FeriadosPorData</b> — feriados móveis e pontos facultativos do TCU, formato <b>'AAAA-MM-DD'</b>. Ex.: ('2026-06-05', N'Ponto facultativo - emenda após Corpus Christi'),</li>
+</ul>
+<p><b>Fonte obrigatória:</b> somente a portaria anual do TCU que define feriados e pontos facultativos do ano, publicada no Boletim do TCU, <b>e todas as portarias que a alterarem</b>. Consulte em pesquisa.apps.tcu.gov.br, base Normas. Não use calendário civil genérico nem de outro órgão.</p>
+<ol style='margin-top:4px'>
+<li>Edite o arquivo <b>powerbi/consulta_faia_farc_power_bi.sql</b> num editor e procure <b>[S.2]</b>: adicione, corrija ou apague a linha. A última linha de cada lista termina em ponto e vírgula, não em vírgula. Não cadastre sábado nem domingo.</li>
+<li>Faça a mesma alteração nas duas consultas individuais (<b>queries/</b>, tabelas #FeriadosFixos e #FeriadosPorData).</li>
+<li>Copie o arquivo do painel <b>inteiro</b> e cole no campo <b>Instrução SQL</b> da etapa Fonte.</li>
+<li>OK › Fechar e aplicar › aprove a consulta nativa › <b>Atualizar</b>.</li>
+</ol>
+<p><b>Efeito:</b> o dia cadastrado deixa de contar como tempo <b>comercial</b> (P3 a P5). P1 e P2 não mudam. Os valores só mudam depois de atualizar, e podem mudar para chamados de ciclos já carregados. Incluir uma data <b>muda resultado</b>: na A2B, valide antes de publicar.</p>
+
+<div style='background:#fff8e6;border-left:4px solid #bf8700;padding:10px 12px;margin:10px 0'>
+<b>Situação do cadastro:</b> a janela de 12 ciclos está coberta — pontos facultativos de 2025 a partir de outubro (27/10, 21/11, 24/12, 26/12, 31/12) e 2026 completo, incluindo 29/06/2026, acrescentado pela Portaria-TCU nº 93/2026. <b>2027 ainda não está cadastrado.</b> Revise sempre que a janela alcançar um ano novo e sempre que o TCU alterar o calendário do ano corrente.
+</div>
+
+<h2 style='font-size:16px;color:#0b3d6b;border-bottom:1px solid #d0d7de;padding-bottom:4px'>8. Alertas de manutenção</h2>
+<div style='background:#fdecec;border-left:4px solid #cf222e;padding:10px 12px;margin:6px 0 10px 0'>
+<b>Não altere sem nova validação:</b>
+<ul style='margin:4px 0 0 0'>
+<li>regras de FAIA e FARC, SLA por severidade, fatores 0,1 e 0,3;</li>
+<li>início da contagem, captura, posse e reposse, rotinas e motores de tempo;</li>
+<li>filtros de população, status e grupo Fornecedores - A2B;</li>
+<li>calendário de feriados, a regra de ciclo 24-24 e a regra de uma linha por chamado.</li>
+</ul>
+</div>
+<ul style='margin-top:4px'>
+<li><b>Eventos no mesmo segundo:</b> são ordenados por act_log.id, a sequência de gravação do log. Isso torna o FARC estável entre atualizações; não troque esse desempate sem nova validação.</li>
+<li>Uma data de feriado <b>repetida</b> faz a atualização falhar com <i>Violation of PRIMARY KEY constraint</i>; a mensagem cita a data.</li>
+<li>Toda mudança feita no painel deve ser feita também no repositório <b>Extracao_de_dados_A2B</b>.</li>
+</ul>
+
+<h2 style='font-size:16px;color:#0b3d6b;border-bottom:1px solid #d0d7de;padding-bottom:4px'>9. Conferência depois de atualizar</h2>
+<ol style='margin-top:4px'>
+<li><b>Sem duplicidade:</b> número de linhas = número de SDMs distintos. Se diferir, não use o resultado.</li>
+<li><b>Volume:</b> a janela só muda no dia 24; fora disso o total deve ser estável.</li>
+<li><b>Datas:</b> Abertura ≤ Captura ≤ Fechamento. Captura vazia é normal em chamado sem captura.</li>
+<li><b>nHR com casas decimais</b> e FAIA = nHR_FAIA × 0,1, FARC = nHR_FARC × 0,3.</li>
+<li><b>Tipos:</b> devem aparecer Incidente, Solicitação e Problema.</li>
+</ol>
+
+<p style='margin-top:16px;color:#57606a;font-size:12px'>Documentação completa: docs/powerbi-query.md, no repositório Extracao_de_dados_A2B. Histórico: project-context/A2B-HISTORICO-CONTEXTO-MESTRE.md.</p>
+</div>

@@ -1,3 +1,15 @@
+-- =============================================================================
+-- PARAMETRO EDITAVEL  (Power Query > Etapas aplicadas > Fonte > engrenagem)
+--
+--   Quantidade de ciclos COMPLETOS carregados. Padrao: 12.
+--   Cada ciclo vai do dia 24 de um mes ate o dia 23 do mes seguinte (regra da
+--   A2B/Protect4). O ciclo em andamento nunca entra.
+--
+--   E o unico numero que precisa mudar para aumentar ou reduzir o periodo.
+--   Nenhuma regra de negocio depende dele. Detalhes no bloco [S.0].
+-- =============================================================================
+DECLARE @PBI_QuantidadeCiclos int = 12;
+
 /*
 ================================================================================
 CONSULTA CONSOLIDADA FAIA + FARC - A2B/PROTECT4  (fonte do Power BI)
@@ -12,7 +24,8 @@ Uso:
   - "Adicionar colunas de relacao": desmarcado
 
 Periodo:
-  - Retorna sempre os seis ultimos ciclos COMPLETOS da Protect4.
+  - Retorna os ultimos @PBI_QuantidadeCiclos ciclos COMPLETOS da Protect4
+    (padrao 12; ate 2026-09-18 eram seis, fixos no codigo).
   - Cada ciclo comeca no dia 24 e termina no dia 23 do mes seguinte.
   - O ciclo atualmente em andamento NAO entra.
   - O periodo SELECIONA os chamados (por close_date). Ele NAO recorta os
@@ -26,9 +39,9 @@ Saida:
   - Um unico result set. Nenhum bloco de diagnostico.
 
 Referencias tecnicas dos calculos (nao substituidas por este arquivo):
-  - protect4/queries/consulta_faia_a2b_protect4.sql
-  - protect4/queries/consulta_farc_a2b_protect4.sql
-  - protect4/docs/powerbi-query.md
+  - queries/consulta_faia_a2b_protect4.sql
+  - queries/consulta_farc_a2b_protect4.sql
+  - docs/powerbi-query.md
 
 A consulta nao cria view, tabela ou procedure permanente. Usa apenas tabelas
 temporarias da sessao, todas com o prefixo #PBI_, #FAIA_ ou #FARC_, que nao
@@ -104,9 +117,9 @@ projeto. Aqui as tabelas foram unificadas pela UNIAO, isto e, incluindo
 2025-12-24 e 2025-12-31 para os dois indicadores.
 
 Efeito: so muda o resultado de chamado cuja janela comercial toque essas duas
-datas. Como a janela e movel (seis ciclos), isso ocorre quando o periodo alcanca
-Dezembro/2025. Registrado em docs/project-context/FAIA-FARC-HISTORICO-CONTEXTO-MESTRE.md.
-As consultas individuais em protect4/queries/ NAO foram alteradas: enquanto o
+datas. Como a janela e movel, isso ocorre quando o periodo alcanca
+Dezembro/2025. Registrado em project-context/A2B-HISTORICO-CONTEXTO-MESTRE.md.
+As consultas individuais em queries/ NAO foram alteradas: enquanto o
 FAIA individual nao receber essas duas datas, ele pode divergir desta consulta
 nesse cenario especifico.
 ================================================================================
@@ -128,9 +141,14 @@ IF OBJECT_ID('tempdb..#FARC_Resultado') IS NOT NULL DROP TABLE #FARC_Resultado;
 DECLARE @PBI_FornecedorNome  nvarchar(100) = N'A2B/Protect4';
 DECLARE @PBI_FornecedorGrupo varbinary(16) = 0xCE4FDD26D5053545BF4A11332BB07485;
 
--- Janela dinamica: seis ultimos ciclos completos da Protect4.
+-- Janela dinamica: ultimos @PBI_QuantidadeCiclos ciclos completos da Protect4.
 -- Cada ciclo vai do dia 24 de um mes ate o dia 23 do mes seguinte.
 -- O ciclo atualmente em andamento e excluido.
+--
+-- @PBI_QuantidadeCiclos e declarado na PRIMEIRA linha util do arquivo, para
+-- ficar visivel no topo da caixa 'Instrucao SQL' da etapa Fonte. Voltar N meses
+-- a partir de um dia 24 cai sempre em outro dia 24, entao a janela comeca
+-- exatamente no inicio de um ciclo, qualquer que seja N.
 DECLARE @PBI_HojeBrasil date =
     CONVERT(date, DATEADD(HOUR, -3, SYSUTCDATETIME()));
 
@@ -149,7 +167,7 @@ DECLARE @PBI_FimBrasilExclusivo datetime2(0) =
     CONVERT(datetime2(0), @PBI_InicioCicloAtual);
 
 DECLARE @PBI_InicioBrasil datetime2(0) =
-    DATEADD(MONTH, -6, @PBI_FimBrasilExclusivo);
+    DATEADD(MONTH, -@PBI_QuantidadeCiclos, @PBI_FimBrasilExclusivo);
 
 -- Conversao para UTC/GMT usado pelo SDM em pdmtime/epoch.
 DECLARE @PBI_HorasBrasilParaUTC int = 3;
@@ -236,11 +254,17 @@ CREATE TABLE #PBI_FeriadosPorData (
     descricao nvarchar(200)  NOT NULL
 );
 
--- Fim de 2025: necessario para qualquer janela que alcance o ciclo
--- Dezembro/2025 - Janeiro/2026. Faltava no lado FAIA.
+-- Pontos facultativos de 2025 no TCU que caem na janela de 12 ciclos.
+-- 24/12 e 31/12 ja existiam (faltavam no lado FAIA).
+-- Fonte: Portaria-TCU n. 10/2025 e alteracoes n. 157/2025 e n. 176/2025
+-- (Boletim do TCU; autenticidade em www.tcu.gov.br/autenticidade, codigos
+-- 77411949, 79190602 e 79506777). 27/10, 21/11 e 26/12 incluidos em 2026-09-18.
 INSERT INTO #PBI_FeriadosPorData (data, descricao)
 VALUES
+    ('2025-10-27', N'Dia do Servidor Público federal - ponto facultativo'),
+    ('2025-11-21', N'Ponto facultativo - sexta-feira após Consciência Negra'),
     ('2025-12-24', N'Ponto facultativo - véspera do Natal'),
+    ('2025-12-26', N'Ponto facultativo - sexta-feira após o Natal'),
     ('2025-12-31', N'Ponto facultativo - véspera da Confraternização Universal');
 
 -- Feriados moveis/diferenciados de 2026.
@@ -260,6 +284,7 @@ VALUES
     ('2026-04-20', N'Ponto facultativo - emenda antes de Tiradentes'),
     ('2026-06-04', N'Corpus Christi - ponto facultativo'),
     ('2026-06-05', N'Ponto facultativo - emenda após Corpus Christi'),
+    ('2026-06-29', N'Ponto facultativo - jogo da Seleção Brasileira na Copa do Mundo FIFA 2026'), -- Portaria-TCU n. 93/2026 (codigo 80587034), incluido em 2026-09-18
     ('2026-10-28', N'Dia do Servidor Público federal - ponto facultativo'),
     ('2026-12-24', N'Ponto facultativo - véspera do Natal'),
     ('2026-12-31', N'Ponto facultativo - véspera da Confraternização Universal');
@@ -419,6 +444,7 @@ CREATE INDEX IX_PBI_EscopoBase_persid ON #PBI_EscopoBase(persid);
 IF OBJECT_ID('tempdb..#PBI_LogEscopo') IS NOT NULL DROP TABLE #PBI_LogEscopo;
 
 SELECT
+    src.id AS log_id,  -- desempate de eventos no mesmo segundo (ver nota junto aos LEAD)
     src.call_req_id,
     src.system_time,
     src.description,
@@ -1524,6 +1550,7 @@ IF OBJECT_ID('tempdb..#FARC_GrupoEventos') IS NOT NULL DROP TABLE #FARC_GrupoEve
 SELECT
     b.id,
     al.system_time AS ev_epoch,
+    al.log_id,
     CONVERT(nvarchar(400), SUBSTRING(t.txt, a.anchor + 8, 400)) AS resto
 INTO #FARC_GrupoRaw
 FROM #FARC_BaseEscopo_FARC_P4 AS b
@@ -1548,6 +1575,7 @@ CREATE INDEX IX_GrupoRaw_id_epoch ON #FARC_GrupoRaw(id, ev_epoch);
 SELECT
     g.id,
     g.ev_epoch,
+    g.log_id,
     CASE WHEN dest.destino LIKE N'%A2B%' THEN 1 ELSE 0 END AS destino_a2b,
     CASE WHEN orig.origem  LIKE N'%A2B%' THEN 1 ELSE 0 END AS origem_a2b
 INTO #FARC_GrupoEventos
@@ -1586,7 +1614,8 @@ OUTER APPLY (
     SELECT TOP (1) g.origem_a2b
     FROM #FARC_GrupoEventos AS g
     WHERE g.id = b.id
-    ORDER BY g.ev_epoch ASC, g.destino_a2b DESC
+    -- log_id so decide quando segundo e destino_a2b empatam; ver DESEMPATE POR act_log.id
+    ORDER BY g.ev_epoch ASC, g.destino_a2b DESC, g.log_id ASC
 ) AS ge1;
 
 CREATE UNIQUE CLUSTERED INDEX IX_GrupoInicial_id ON #FARC_GrupoInicial(id);
@@ -1598,16 +1627,17 @@ CREATE UNIQUE CLUSTERED INDEX IX_GrupoInicial_id ON #FARC_GrupoInicial(id);
 -- disjuntos, então não há sobreposição/duplicidade.
 IF OBJECT_ID('tempdb..#FARC_JanelasA2B') IS NOT NULL DROP TABLE #FARC_JanelasA2B;
 ;WITH timeline AS (
-    SELECT id, t_inicial AS t, inicial_a2b AS is_a2b, CONVERT(tinyint, 0) AS ord
+    SELECT id, t_inicial AS t, inicial_a2b AS is_a2b, CONVERT(tinyint, 0) AS ord, CONVERT(int, 0) AS log_id
     FROM #FARC_GrupoInicial
     UNION ALL
-    SELECT id, ev_epoch AS t, destino_a2b AS is_a2b, CONVERT(tinyint, 1) AS ord
+    SELECT id, ev_epoch AS t, destino_a2b AS is_a2b, CONVERT(tinyint, 1) AS ord, log_id
     FROM #FARC_GrupoEventos
 ),
 ordered AS (
     SELECT
         id, t, is_a2b,
-        LEAD(t) OVER (PARTITION BY id ORDER BY t ASC, ord ASC) AS next_t
+        -- log_id: dois eventos de grupo no mesmo segundo (ver DESEMPATE POR act_log.id)
+        LEAD(t) OVER (PARTITION BY id ORDER BY t ASC, ord ASC, log_id ASC) AS next_t
     FROM timeline
 )
 SELECT
@@ -1641,6 +1671,7 @@ IF OBJECT_ID('tempdb..#FARC_StatusEvA2B') IS NOT NULL DROP TABLE #FARC_StatusEvA
 SELECT
     b.id,
     al.system_time AS ev_epoch,
+    al.log_id,
     CONVERT(nvarchar(400), SUBSTRING(t.txt, a.anchor, 400)) AS resto
 INTO #FARC_StatusRaw
 FROM #FARC_BaseEscopo_FARC_P4 AS b
@@ -1669,6 +1700,7 @@ CREATE INDEX IX_StatusRaw_id_epoch ON #FARC_StatusRaw(id, ev_epoch);
 SELECT
     s.id,
     s.ev_epoch,
+    s.log_id,
     CASE
         WHEN dest.destino COLLATE Latin1_General_CI_AI = N'Em andamento'
           OR dest.destino COLLATE Latin1_General_CI_AI = N'In Progress'
@@ -1715,8 +1747,14 @@ CREATE INDEX IX_StatusEvA2B_id_epoch ON #FARC_StatusEvA2B(id, ev_epoch);
 IF OBJECT_ID('tempdb..#FARC_SegAtivoA2B') IS NOT NULL DROP TABLE #FARC_SegAtivoA2B;
 ;WITH ev AS (
     SELECT
+        -- DESEMPATE POR act_log.id (2026-09-18). O SDM grava o tempo em SEGUNDOS
+        -- inteiros e a automacao registra rajadas de mudanca de status no mesmo
+        -- segundo. Ordenar so pelo segundo deixava a ordem da rajada a criterio do
+        -- SQL Server, e o FARC variava de uma execucao para outra. act_log.id e a
+        -- sequencia de gravacao: na ordem (segundo, id) a cadeia origem->destino fica
+        -- consistente em 16.114 de 16.115 pares medidos.
         id, ev_epoch, destino_ativo, destino_aberto,
-        LEAD(ev_epoch) OVER (PARTITION BY id ORDER BY ev_epoch) AS prox
+        LEAD(ev_epoch) OVER (PARTITION BY id ORDER BY ev_epoch, log_id) AS prox
     FROM #FARC_StatusEvA2B
 ),
 prim AS (
@@ -2016,6 +2054,7 @@ IF OBJECT_ID('tempdb..#FARC_StatusEventosLead') IS NOT NULL DROP TABLE #FARC_Sta
     SELECT
         b.id,
         al.system_time AS ev_epoch,
+        al.log_id,
         CASE
             WHEN CONVERT(nvarchar(max), ISNULL(al.description, N'')) COLLATE Latin1_General_CI_AI LIKE N'%para ''Em andamento''%'
               OR CONVERT(nvarchar(max), ISNULL(al.action_desc,  N'')) COLLATE Latin1_General_CI_AI LIKE N'%para ''Em andamento''%'
@@ -2039,7 +2078,8 @@ SELECT
     id,
     ev_epoch,
     is_em_andamento,
-    LEAD(ev_epoch) OVER (PARTITION BY id ORDER BY ev_epoch) AS prox_epoch
+    -- log_id: rajadas de status no mesmo segundo (ver DESEMPATE POR act_log.id)
+    LEAD(ev_epoch) OVER (PARTITION BY id ORDER BY ev_epoch, log_id) AS prox_epoch
 INTO #FARC_StatusEventosLead
 FROM ev;
 

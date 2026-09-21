@@ -24610,3 +24610,146 @@ A partir desta seção, todo conteúdo novo aqui é da A2B / Protect4. Trabalhos
 Somente documentação: o `README.md` passou a declarar o escopo exclusivo do repositório, deixou de listar a pasta `protect4/logs/` — que não existe no repositório — e ganhou a seção sobre este histórico. Nenhuma consulta foi alterada.
 
 A janela de **seis ciclos 24-24** da consulta do Power BI da A2B é regra **da A2B** e permanece como está. Na mesma data ela foi removida da Decision, para onde tinha sido copiada indevidamente.
+
+## 71. 2026-09-18 (2ª) — estrutura sem a pasta `protect4/`; histórico renomeado; painel passa a carregar 12 ciclos 24-24
+
+### 71.1. Reorganização de arquivos
+
+A pasta intermediária `protect4/` só repetia o escopo do repositório e foi removida. Tudo com `git mv`:
+
+```text
+protect4/queries/                      -> queries/
+protect4/powerbi/                      -> powerbi/
+protect4/analysis/                     -> analysis/
+protect4/docs/*.md                     -> docs/
+docs/project-context/FAIA-FARC-HISTORICO-CONTEXTO-MESTRE.md
+                                       -> project-context/A2B-HISTORICO-CONTEXTO-MESTRE.md
+```
+
+As consultas individuais e as de `support/` não mudaram: mesmos blobs no Git antes e depois. A pasta antiga `Queries`, fora dos repositórios, foi excluída nesta data. As seções anteriores deste histórico citam os caminhos da época (`protect4/…`, `docs/project-context/…`) e não foram reescritas.
+
+Regra daqui para frente: trabalho da A2B atualiza **somente** este arquivo.
+
+### 71.2. Painel: de 6 para 12 ciclos
+
+Única alteração funcional. Em `powerbi/consulta_faia_farc_power_bi.sql`, o `6` fixo em `DATEADD(MONTH, -6, @PBI_FimBrasilExclusivo)` passou a ser a variável `@PBI_QuantidadeCiclos`, declarada na primeira instrução do arquivo com padrão `12`. O resto do código executável é idêntico; mudaram também comentários de caminho. A regra de ciclo continua **24-24**, e o ciclo em andamento continua fora.
+
+Voltar N meses a partir de um dia 24 cai sempre em outro dia 24, então a janela começa exatamente no início de um ciclo para qualquer N.
+
+Janela em 18/09/2026: `24/08/2025 00:00` a `24/08/2026 00:00` exclusivo.
+
+### 71.3. A validação encontrou um não-determinismo anterior
+
+A primeira comparação antes × depois mostrou 26 chamados dos ciclos antigos com `Tempo de Atendimento` diferente. Antes de concluir, a versão publicada de **6 ciclos** foi executada duas vezes seguidas, sem nenhuma mudança: **25 chamados variaram entre as duas execuções**. Juntando todas as execuções de produção, foram 33 de 1.203 (25 deles P2). Num deles, `1492048`, a `Meta Atendimento` troca entre `Atende` e `Não Atende`.
+
+Causa: eventos no **mesmo segundo** ordenados sem desempate em três pontos do FARC:
+
+```text
+LEAD(ev_epoch) OVER (PARTITION BY id ORDER BY ev_epoch)   segmentos ativos      [6.3.5]
+LEAD(ev_epoch) OVER (PARTITION BY id ORDER BY ev_epoch)   intervalos Em andamento
+TOP (1) ... ORDER BY g.ev_epoch ASC, g.destino_a2b DESC   estado de grupo inicial [6.3.2]
+```
+
+Qual evento fica com o trecho seguinte depende da ordem física que o SQL Server escolhe naquela execução, e ampliar a janela muda o plano.
+
+Prova: em cópias **só de teste**, com desempate fixo nesses três pontos,
+
+```text
+6 ciclos, duas execuções ........... idênticas (mesmo SHA256)
+6 x 12 ciclos, nos 6 ciclos antigos  0 SDMs removidos, 0 extras, 0 colunas diferentes,
+                                     mesmo SHA256 das linhas
+```
+
+Conclusão: **a mudança para 12 ciclos ampliou somente a cobertura histórica; as regras e os resultados dos ciclos já existentes permaneceram idênticos.** A variação observada em produção é o defeito anterior, presente também com 6 ciclos.
+
+O defeito **não foi corrigido**: escolher o desempate é decisão de negócio e muda resultados já validados.
+
+### 71.4. Ciclos acrescentados
+
+```text
+Ciclo                      SDMs    I     R   nHR_FAIA   FAIA   nHR_FARC   FARC
+24/08/2025 a 23/09/2025     185   44   141      4,84    0,48     11,96    3,59
+24/09/2025 a 23/10/2025     168   42   126      2,82    0,29      0,00    0,00
+24/10/2025 a 23/11/2025     195   64   131      7,80    0,78      0,00    0,00
+24/11/2025 a 23/12/2025     194   62   132      7,36    0,73      0,00    0,00
+24/12/2025 a 23/01/2026     183   66   117      5,33    0,53      0,00    0,00
+24/01/2026 a 23/02/2026     282  156   126     11,72    1,16     12,68    3,80
+TOTAL                      1207  434   773
+```
+
+Total com 12 ciclos: 2.410 linhas, 2.410 SDMs distintos, sem duplicidade. Nos ciclos novos: FAIA com 1.189 `Atende` e 18 `Não Atende`; FARC com 1.205 `Atende` e 2 `Não Atende`.
+
+### 71.5. Calendário: lacuna registrada, sem alteração
+
+`#PBI_FeriadosPorData` tem 2026 pela portaria original e, de 2025, só `2025-12-24` e `2025-12-31`. Conferido contra as portarias oficiais do TCU — as mesmas usadas na Decision em 18/09/2026 —, **faltam dentro da janela de 12 ciclos**:
+
+```text
+2025-10-27  Dia do Servidor Público federal   Portaria-TCU nº 10/2025
+2025-11-21  ponto facultativo                 Portaria-TCU nº 157/2025
+2025-12-26  ponto facultativo                 Portaria-TCU nº 176/2025
+2026-06-29  ponto facultativo (Copa)          Portaria-TCU nº 93/2026   <- ciclos já validados
+```
+
+Chamados comerciais (P3–P5) cuja vida passa por essas datas, portanto **potencialmente** afetados: 23, 39, 26 e 17, respectivamente. Os de 2026-06-29 estão todos nos ciclos já validados. Não foram incluídas porque mudam resultado e a regra da A2B não podia mudar nesta rodada.
+
+### 71.6. Documentação
+
+- `docs/powerbi-query.md` — período em 12 ciclos, com exemplo e tabela de cobertura; fonte oficial obrigatória para feriados; situação real do cadastro; validação da ampliação; as duas limitações acima; seção 13 nova, de manutenção no Power Query. O exemplo de inclusão com datas de 2027, sem fonte, foi substituído por uma data já cadastrada.
+- `docs/documentacao-powerbi-a2b.html` — nova. Mesmo conteúdo para o visual HTML Content: CSS inline, sem script, sem recurso externo e sem aspas duplas.
+- `README.md` — árvore nova, 12 ciclos, parâmetros reais, local deste histórico.
+
+## 72. 2026-09-18 (3ª) — calendário completo na janela e FARC determinístico
+
+Duas correções pequenas e independentes, aplicadas depois de investigação dirigida. Nenhuma outra regra mudou.
+
+### 72.1. Calendário
+
+**Arquitetura mantida.** A consulta não lê arquivo externo. A única fonte guardada na pasta de trabalho é `Documentos e Relatórios/Portaria - feriados TCU 2026.pdf` — a Portaria-TCU nº 1/2026 **original** —, e suas datas foram transcritas para `#PBI_FeriadosFixos` / `#PBI_FeriadosPorData`. A transcrição de 2026 conferiu exatamente com o PDF. O que faltava não estava no PDF:
+
+```text
+2025-10-27  Dia do Servidor Público federal   Portaria-TCU nº 10/2025, inciso XIII   (BTCU cód. 77411949)
+2025-11-21  ponto facultativo                 Portaria-TCU nº 157/2025               (BTCU cód. 79190602)
+2025-12-26  ponto facultativo                 Portaria-TCU nº 176/2025               (BTCU cód. 79506777)
+2026-06-29  ponto facultativo (Copa)          Portaria-TCU nº 93/2026, de 25/06/2026 (BTCU cód. 80587034)
+```
+
+As quatro datas foram incluídas no painel, no FARC individual e no FAIA individual, com comentário citando a portaria. O FAIA individual continua sem `2025-12-24` e `2025-12-31` — diferença anterior, fora do escopo desta correção.
+
+### 72.2. FARC determinístico
+
+**Defeito.** O SDM grava o log em segundos inteiros, e a automação registra rajadas de mudança de status no mesmo segundo — no SDM 1492048, às 00:32:01 de 07/03/2024, os eventos 21832086, 21832089 e 21832091 fazem `Agendado → Em andamento → Aguarda atendimento → Em andamento`. Quatro pontos ordenavam eventos só pelo segundo:
+
+```text
+[6.3.5] segmentos ativos          LEAD(ev_epoch) OVER (... ORDER BY ev_epoch)
+        intervalos Em andamento   LEAD(ev_epoch) OVER (... ORDER BY ev_epoch)
+[6.3.2] estado de grupo inicial   TOP (1) ... ORDER BY ev_epoch, destino_a2b DESC
+[6.3.3] janelas de posse          LEAD(t) OVER (... ORDER BY t, ord)
+```
+
+A ordem dentro da rajada ficava a critério do SQL Server. Quatro execuções seguidas da versão publicada de 6 ciclos deram quatro resultados diferentes, com 41 chamados variando; a consulta individual do FARC tinha o mesmo defeito, com 14 chamados variando entre duas execuções.
+
+**Prova do mecanismo.** No 1492048, o valor com a ordem correta é 23:47:47. As execuções erradas deram 23:49:25 (+98 s, exatamente o trecho da rajada de 24/01/2025 23:41:01) e, na execução de 12 ciclos, 27:16:13 (+12.506 s, exatamente o trecho da rajada de 06/10/2024 23:41:01), que passa de 24h e trocava a meta para `Não Atende`.
+
+**Desempate escolhido: `act_log.id`**, a chave primária sequencial do log. Critério: na ordem (segundo, `id`), a cadeia de status é consistente — a origem de cada evento é o destino do anterior — em 16.114 de 16.115 pares medidos nos 33 chamados que variavam; nos 335 grupos empatados, todos consistentes, e em média só 1,01 ordem possível é consistente. Descartados: `id` decrescente (93,8%); `time_stamp` e `last_mod_dt` (também em segundos); e qualquer campo de negócio como `destino_ativo`, que é determinístico mas escolhe a ordem errada — testado, dava 41:45:11 no 1492048.
+
+O `id` passou a viajar da cópia do log (`#PBI_LogEscopo` / `#LogEscopo`, coluna `log_id`) até as cadeias de grupo e de status, e é o último critério nos quatro pontos. No `TOP (1)`, o desempate existente por `destino_a2b` foi mantido antes dele.
+
+### 72.3. Validação
+
+```text
+painel, 3 execuções .................. idênticas; byte a byte iguais à cópia de teste validada
+FARC individual, 2 execuções ......... idênticas (antes: 14 SDMs diferiam entre duas)
+FAIA individual ...................... sem mudança no ciclo 24/03–23/04/2026
+FARC individual x painel, 234 SDMs ... Tempo de Atendimento, Meta, nHR_FARC e FARC iguais
+6 x 12 ciclos, mesma ordenação ....... ciclos antigos idênticos (mesmo SHA256)
+```
+
+**Impacto no painel (12 ciclos).** Só o calendário: 32 chamados, só colunas de tempo. Contra a execução anterior de 12 ciclos: 59 chamados com tempo diferente; `nHR_FARC`/`FARC` em 5; uma meta — `1492048`, `Não Atende` → `Atende`. Nenhuma mudança em FAIA, `nHR_FAIA` ou meta do FAIA. Todas as diferenças atribuídas ao desempate **reduzem** o tempo: a versão anterior só inflava, contando como ativo um trecho em que o chamado estava em "Aguarda atendimento".
+
+Como a versão anterior dava resultados diferentes a cada execução, não há como saber qual deles foi validado; o resultado atual é o único reproduzível.
+
+Observação que não é desta correção: em 9 dos 234 chamados do ciclo 24/03–23/04/2026, `Data Abertura` e `Data Captura` do painel (vindas da metade FAIA) diferem das do FARC individual. A diferença já existia antes.
+
+### 72.4. Documentação
+
+`docs/powerbi-query.md` (situação do cadastro com tabela de portarias; correções e limitações), `docs/documentacao-powerbi-a2b.html` (mesmo conteúdo) e `docs/farc-calculation.md` (seção 5, eventos no mesmo segundo).

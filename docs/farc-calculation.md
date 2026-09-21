@@ -105,6 +105,8 @@ Sobre o `In Progress`: é só "Em andamento" em inglês. A consulta checa os doi
 
 Pegadinha: "Aberto, aguarda atendimento" (fila inicial) conta; "Aguarda atendimento" (espera depois do trabalho) não conta.
 
+**Eventos no mesmo segundo.** O SDM grava o horário do log em segundos inteiros, e a automação às vezes registra várias mudanças de status no mesmo segundo — por exemplo `Agendado → Em andamento → Aguarda atendimento`. O status que vale depois da rajada é o do **último** evento. Por isso a consulta ordena os eventos por horário e, no empate, por `act_log.id`, que é a sequência de gravação do log. Sem esse desempate, a ordem ficava a critério do SQL Server e o mesmo chamado podia ter tempos diferentes em execuções diferentes (corrigido em 2026-09-18). O mesmo desempate vale para os eventos de grupo.
+
 \---
 
 ## 6\. O chamado pode sair e voltar (reposse)
@@ -370,15 +372,15 @@ O cálculo foi feito para bater com o relatório BO e, na grande maioria dos cha
 Além desta consulta, existe uma **consulta consolidada** feita para alimentar o painel:
 
 ```text
-protect4/powerbi/consulta_faia_farc_power_bi.sql
+powerbi/consulta_faia_farc_power_bi.sql
 ```
 
 O que muda entre as duas:
 
-| | Esta consulta (`protect4/queries/`) | Consulta do painel (`protect4/powerbi/`) |
+| | Esta consulta (`queries/`) | Consulta do painel (`powerbi/`) |
 |---|---|---|
 | O que retorna | só o FARC | FAIA **e** FARC, na mesma linha |
-| Período | fixo, editado à mão nos parâmetros | dinâmico: os seis últimos ciclos completos |
+| Período | fixo, editado à mão nos parâmetros | dinâmico: os últimos `@PBI_QuantidadeCiclos` ciclos 24-24 completos (padrão 12) |
 | Para que serve | **referência técnica** do cálculo do FARC | fonte de dados do Power BI |
 | Diagnósticos | tem, com `@MostrarDiagnostico = 1` | não tem: devolve um único resultado |
 
