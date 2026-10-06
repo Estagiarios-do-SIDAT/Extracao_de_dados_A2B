@@ -24881,3 +24881,34 @@ Efeito:
   `af35e33`; os 2 `REL_TICKET` da janela não mudavam métrica; painel x consulta
   individual sem diferença;
 - ciclos de 24/01/2025 a 23/09/2026 (4.086 chamados): população idêntica; só o 1603369 muda, com `Tempo de Atendimento` de 0:43:14 para 1:20:15 (+37:01), sem excesso e com meta e FARC iguais.
+
+## 75. 2026-10-06 — avaliação dos status `hold = 0`
+
+Critério (decisão do usuário): um status com `cr_stat.hold = 0` que hoje não
+conta só entra na lista de ativos se, em todos os projetos onde ocorrer:
+
+1. aumentar o tempo agregado em até 2%;
+2. aumentar o FARC agregado em até 1%;
+3. não levar nenhum chamado de Atende para Não Atende;
+4. não acrescentar mais de 4 h a nenhum chamado;
+5. não mudar a população;
+6. não for terminal, administrativo, de problema/mudança nem de outra entidade;
+7. representar uma condição operacional do chamado.
+
+A lista continua explícita, e não o `hold` dinâmico.
+
+"Aguarda atendimento" (`REOP`) foi **reprovado** em todos os projetos, contra
+as versões publicadas:
+
+| Projeto | Tempo | FARC | Atende → Não Atende | Maior delta |
+|---|---|---|---|---|
+| Virtual | +1,76% / +2,00% | +0,22% | 0 | **+115:17** |
+| Decision | +1,14% | **+11,98%** | **1** | **+56:04** |
+| A2B | **+17,05%** | **+238,5%** (38,33 → 129,76) | **12** | **+40:39** |
+
+Na A2B, 178 h das 1.209 h em "Aguarda atendimento" na posse são fila antes do
+primeiro atendimento (1.235 chamados), já medida no FAIA. Nenhum outro status
+`hold = 0` do chamado ocorre na população. Os terminais e administrativos
+(`Homologada pelo cliente`, `Encerrado`, `Resolvido, avisar cliente`...), os de
+problema/mudança e os de RDM ficam fora pelo critério 6. Lista mantida: "Em
+andamento", "Aberto, aguarda atendimento", "Reaberto".

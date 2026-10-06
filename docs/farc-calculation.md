@@ -88,7 +88,7 @@ Por que nunca é usado? O Plano C só entraria se o chamado não tivesse data de
 
 ## 5\. O que conta como "trabalhando"
 
-Contam três status: "Em andamento", "Aberto, aguarda atendimento" (a fila inicial) e "Reaberto". Qualquer outro pausa o cronômetro.
+Contam três status: "Em andamento", "Aberto, aguarda atendimento" (a fila inicial) e "Reaberto". Qualquer outro pausa o cronômetro. A lista é explícita, e não o campo `cr_stat.hold`: o cadastro também marca com `hold = 0` status terminais, administrativos e de problema/mudança, que não são atendimento. "Aguarda atendimento" tem `hold = 0` e continua sem contar: foi avaliado e reprovado pelo impacto (em 12 ciclos, +983 h em 1.061 chamados, FARC total de 38,33 para 129,76 e 12 chamados passando a "Não Atende").
 
 "Reaberto" conta por orientação do gerente (2026-10-06): quando o analista encerra o chamado por engano como "Resolvido, concluído", o correto é reabrir e pôr o status certo, e esse tempo é de atendimento. Como os outros status, só conta dentro da posse da A2B; é um status de trabalho (não é fila), então segue a mesma regra do "Em andamento" herdado (seção 7.1). O `Indicador Reabertura` continua sendo só um indicador: ele diz que houve reabertura e não soma tempo.
 
