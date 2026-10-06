@@ -24753,3 +24753,112 @@ Observação que não é desta correção: em 9 dos 234 chamados do ciclo 24/03�
 ### 72.4. Documentação
 
 `docs/powerbi-query.md` (situação do cadastro com tabela de portarias; correções e limitações), `docs/documentacao-powerbi-a2b.html` (mesmo conteúdo) e `docs/farc-calculation.md` (seção 5, eventos no mesmo segundo).
+
+## 73. 2026-10-06 — "Reaberto" passa a contar no FARC
+
+Orientação do gerente (SDM 1710057, Decision), que prevalece sobre a regra
+anterior de status ativos: "Reaberto deve ser contado sim. Muitas vezes os
+analistas encerram chamados como 'Resolvido, concluído' por engano [...]. O
+correto é reabrir o chamado e inserir o status correto. [...] conta o tempo
+sim."
+
+### 73.1. Onde "Reaberto" aparece nos motores
+
+| Motor | Antes | Depois |
+|---|---|---|
+| `[8A]` rotina (`#TempoAtendimentoRotina`, abertura → fechamento) | já contava, implicitamente (intervalo) | sem mudança |
+| `[6.3.4–7.1]` tempo ativo por janela (`#StatusEvA2B`) | `Reaberto` inativo | ativo no destino e na origem do 1º evento; status de trabalho (regra do herdado) |
+| `[8B]` motor LEAD (`#StatusEventosLead`) | só "Em andamento" | "Em andamento" e "Reaberto" |
+| Escolha final | maior dos dois motores de status | sem mudança (maior, nunca soma: sem dupla contagem) |
+
+Os dois motores já liam o evento `RO` (o texto da transição é procurado em
+`description` e `action_desc`, de qualquer tipo). Em 287 de 491 `RO` do SDM
+desde 2025 a transição está só em `action_desc`, porque a `description` traz o
+comentário do analista ("chamado encerrado equivocadamente"). O posse
+continua mandando: "Reaberto" fora das janelas A2B não conta.
+
+### 73.2. Validação
+
+Validação na consulta individual, ciclos de 24/01/2025 a 23/09/2026 (4.086
+chamados):
+
+- população idêntica;
+- 23 chamados com `Tempo de Atendimento` maior. O acréscimo é exatamente a
+  duração do trecho em "Reaberto" na posse; por exemplo:
+
+| SDM | Trecho em "Reaberto" | Tempo de Atendimento |
+|---|---|---|
+| 1625148 | 29/07/2025 11:42:21 → 14:12:39 | 2:31:50 → 5:02:08 (+2:30:18) |
+| 1687022 | 30/03/2026 19:04:16 → 19:05:18 | 55:56:12 → 55:57:14 (+1:02) |
+| 1685470 | `RO` só em `action_desc` | +0:45 |
+| 1693182 | `RO` só em `action_desc` | +0:56 |
+| 1711765 | `RO` só em `action_desc` | +6:24 |
+
+- excesso alterado em 2 chamados (1685470, 1687022) e FARC em 1 (1687022: 9,58 →
+  9,59); nenhuma `Meta Atendimento` mudou;
+- 1695799 (rotina) não mudou: o intervalo já continha o trecho;
+- 1710824 e 1719978 foram reabertos já no COI e não estão na população.
+
+Painel (12 ciclos) x consulta individual: 2.479 chamados em comum, 0 diferenças
+em Tempo de Atendimento, excesso, meta, nHR_FARC, FARC e Data de Fechamento.
+
+### 73.3. Pendência registrada, sem alteração
+
+O `SOLN` não entra na linha de status da A2B. Num chamado com
+`SOLN → RO → Reaberto`, o trecho entre o `SOLN` e a reabertura continua com o
+status anterior ("Em andamento"), que é ativo. O efeito é de segundos nos casos
+vistos (1687022: 22 s; 1685470: 47 s), mas a regra deve ser decidida à parte.
+
+### 73.4. SOLN passa a pausar (pendência 73.3 resolvida)
+
+Decisão do usuário: a pendência 73.3 entra nesta rodada, porque sem ela a regra
+de reabertura fica errada (o trecho `SOLN → RO` contava como "Em andamento").
+
+O `SOLN` entra como evento inativo em `#StatusEvA2B` ([6.3.4]) e no motor LEAD
+([8B]), dentro da posse. A rotina [8A] não mudou.
+
+Validação contra `31765b6` (ciclos de 24/01/2025 a 23/09/2026, 4.086 chamados):
+
+- população idêntica;
+- 24 chamados com `Tempo de Atendimento` alterado; o delta líquido é
+  `+ Reaberto − (SOLN → RO)`:
+
+| SDM | + Reaberto | − SOLN → RO | Líquido | Tempo de Atendimento | FARC |
+|---|---|---|---|---|---|
+| 1625148 | +2:30:18 | 0 | +2:30:18 | 2:31:50 → 5:02:08 | 0 → 0 |
+| 1687022 | +1:02 | −0:22 | +0:40 | 55:56:12 → 55:56:52 | 9,58 → 9,58 |
+| 1685470 | +0:45 | −0:47 | −0:02 | 30:43:40 → 30:43:38 | 2,02 → 2,02 |
+| 1693182 | +0:56 | −0:59 | −0:03 | 5:53:41 → 5:53:38 | 0 → 0 |
+| 1711765 | +6:24 | −1:22 | +5:02 | 10:27:32 → 10:32:34 | 0 → 0 |
+| 1617135 | +0:18 | −2:51 | −2:33 | 2:24:45 → 2:22:12 | 0 → 0 |
+
+  Nos outros 17 chamados só há o acréscimo de "Reaberto" (5 a 17 s).
+
+- 1639465: `SOLN` sem reabertura, às 09:33:53 de 08/09/2025. O evento seguinte
+  é "Agendado → Em andamento" às 19:23:29, ou seja, o chamado estava em
+  `Agendado`. Antes contavam 9:49:36 como "Em andamento"; agora não contam
+  (10:12:37 → 0:23:01).
+- Excesso alterado em 2 chamados (1685470, 1687022); nenhuma `Meta Atendimento`
+  e nenhum FARC (2 casas) mudou.
+- Painel x consulta individual: 2.479 chamados em comum, 0 diferenças.
+
+### 73.5. Pausa do SOLN restrita ao ciclo reaberto (substitui 73.4)
+
+Decisão do usuário: a pausa do `SOLN` vale só para o `SOLN` seguido de
+reabertura, para não misturar uma correção ampla de `SOLN` com a regra de
+"Reaberto".
+
+- Novo `#SolnReaberturaA2B` (`#FARC_SolnReaberturaA2B` no painel): `SOLN`
+  cujo próximo evento de status (ordem `system_time`, `act_log.id`) é a ida
+  para "Reaberto". Só esses entram como inativos em `#StatusEvA2B` e no motor
+  LEAD. A pausa vai exatamente do `SOLN` ao `RO`.
+- Validação contra `31765b6` (4.086 chamados, mesma hora):
+  - população idêntica;
+  - 23 chamados alterados, todos com reabertura; 0 sem reabertura;
+  - 23 com acréscimo de "Reaberto"; 5 com desconto de `SOLN → RO` (1617135
+    −2:51, 1685470 −0:47, 1687022 −0:22, 1693182 −0:59, 1711765 −1:22);
+  - painel x consulta individual sem diferença.
+- 1639465 volta a ser igual ao publicado (10:12:37). Fica registrado como
+  possível defeito independente, a avaliar em outra rodada: depois do `SOLN` de
+  08/09/2025 09:33:53 o próximo evento é "Agendado → Em andamento" (19:23:29),
+  e as 9:49:36 entre eles contam como "Em andamento".

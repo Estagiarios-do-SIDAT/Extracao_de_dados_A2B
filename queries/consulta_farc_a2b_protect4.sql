@@ -1048,12 +1048,17 @@ SELECT
         WHEN dest.destino COLLATE Latin1_General_CI_AI = N'Em andamento'
           OR dest.destino COLLATE Latin1_General_CI_AI = N'In Progress'
           OR dest.destino COLLATE Latin1_General_CI_AI LIKE N'Aberto%aguarda%atendimento%'
+          -- Reaberto conta como atendimento (orientacao do gerente, 2026-10-06).
+          OR dest.destino COLLATE Latin1_General_CI_AI = N'Reaberto'
+          OR dest.destino COLLATE Latin1_General_CI_AI = N'Reopened'
             THEN 1 ELSE 0
     END AS destino_ativo,
     CASE
         WHEN orig.origem COLLATE Latin1_General_CI_AI = N'Em andamento'
           OR orig.origem COLLATE Latin1_General_CI_AI = N'In Progress'
           OR orig.origem COLLATE Latin1_General_CI_AI LIKE N'Aberto%aguarda%atendimento%'
+          OR orig.origem COLLATE Latin1_General_CI_AI = N'Reaberto'
+          OR orig.origem COLLATE Latin1_General_CI_AI = N'Reopened'
             THEN 1 ELSE 0
     END AS origem_ativo,
     -- Marca se o status ativo e a FILA 'Aberto, aguarda atendimento' (espera que
@@ -1079,6 +1084,39 @@ CROSS APPLY (
 CROSS APPLY (SELECT q3 = CASE WHEN pp.ppos > 0 THEN CHARINDEX(N'''', s.resto, pp.ppos) ELSE 0 END) AS c3
 CROSS APPLY (SELECT q4 = CASE WHEN c3.q3 > 0 THEN CHARINDEX(N'''', s.resto, c3.q3 + 1) ELSE 0 END) AS c4
 CROSS APPLY (SELECT destino = CASE WHEN c4.q4 > c3.q3 THEN SUBSTRING(s.resto, c3.q3 + 1, c4.q4 - c3.q3 - 1) ELSE N'' END) AS dest;
+
+-- SOLN seguido de reabertura (2026-10-06): quando o proximo evento de status
+-- depois do SOLN e a ida para 'Reaberto' (RO), o trecho SOLN -> RO e periodo
+-- resolvido e nao conta; o 'Reaberto' volta a contar. So esses SOLN entram como
+-- pausa: SOLN sem reabertura seguinte nao muda a linha de status.
+IF OBJECT_ID('tempdb..#SolnReaberturaA2B') IS NOT NULL DROP TABLE #SolnReaberturaA2B;
+SELECT
+    b.id,
+    al.system_time AS ev_epoch,
+    al.log_id
+INTO #SolnReaberturaA2B
+FROM #BaseEscopo_FARC_P4 AS b
+JOIN #LogEscopo AS al
+    ON al.call_req_id = b.persid
+CROSS APPLY (
+    SELECT TOP (1) s.resto
+    FROM #StatusRaw AS s
+    WHERE s.id = b.id
+      AND (s.ev_epoch > al.system_time
+           OR (s.ev_epoch = al.system_time AND s.log_id > al.log_id))
+    ORDER BY s.ev_epoch, s.log_id
+) AS prox
+WHERE al.system_time IS NOT NULL
+  AND al.[type] = 'SOLN'
+  AND (b.close_date IS NULL OR al.system_time <= b.close_date)
+  AND (   prox.resto COLLATE Latin1_General_CI_AI LIKE N'%para ''Reaberto''%'
+       OR prox.resto COLLATE Latin1_General_CI_AI LIKE N'%to ''Reopened''%');
+
+-- Origem tratada como a fila inicial, so para o raro caso de o SOLN ser o 1o
+-- evento de status.
+INSERT INTO #StatusEvA2B (id, ev_epoch, log_id, destino_ativo, origem_ativo, destino_aberto, origem_aberto)
+SELECT sr.id, sr.ev_epoch, sr.log_id, 0, 1, 0, 1
+FROM #SolnReaberturaA2B AS sr;
 
 CREATE INDEX IX_StatusEvA2B_id_epoch ON #StatusEvA2B(id, ev_epoch);
 
@@ -1403,6 +1441,11 @@ IF OBJECT_ID('tempdb..#StatusEventosLead') IS NOT NULL DROP TABLE #StatusEventos
               OR CONVERT(nvarchar(max), ISNULL(al.action_desc,  N'')) COLLATE Latin1_General_CI_AI LIKE N'%para ''Em andamento''%'
               OR CONVERT(nvarchar(max), ISNULL(al.description, N'')) COLLATE Latin1_General_CI_AI LIKE N'%to ''In Progress''%'
               OR CONVERT(nvarchar(max), ISNULL(al.action_desc,  N'')) COLLATE Latin1_General_CI_AI LIKE N'%to ''In Progress''%'
+              -- Reaberto conta como atendimento (orientacao do gerente, 2026-10-06).
+              OR CONVERT(nvarchar(max), ISNULL(al.description, N'')) COLLATE Latin1_General_CI_AI LIKE N'%para ''Reaberto''%'
+              OR CONVERT(nvarchar(max), ISNULL(al.action_desc,  N'')) COLLATE Latin1_General_CI_AI LIKE N'%para ''Reaberto''%'
+              OR CONVERT(nvarchar(max), ISNULL(al.description, N'')) COLLATE Latin1_General_CI_AI LIKE N'%to ''Reopened''%'
+              OR CONVERT(nvarchar(max), ISNULL(al.action_desc,  N'')) COLLATE Latin1_General_CI_AI LIKE N'%to ''Reopened''%'
             THEN 1 ELSE 0
         END AS is_em_andamento
     FROM #BaseEscopo_FARC_P4 AS b
@@ -1416,6 +1459,20 @@ IF OBJECT_ID('tempdb..#StatusEventosLead') IS NOT NULL DROP TABLE #StatusEventos
          OR CONVERT(nvarchar(max), ISNULL(al.action_desc,  N'')) COLLATE Latin1_General_CI_AI LIKE N'%Status alterado%para %'
          OR CONVERT(nvarchar(max), ISNULL(al.description, N'')) COLLATE Latin1_General_CI_AI LIKE N'%Status changed%to %'
       )
+
+    UNION ALL
+
+    -- SOLN seguido de reabertura (2026-10-06): pausa ate o RO (ver [6.3.4]).
+    SELECT
+        sr.id,
+        sr.ev_epoch,
+        sr.log_id,
+        0 AS is_em_andamento
+    FROM #SolnReaberturaA2B AS sr
+    JOIN #BaseEscopo_FARC_P4 AS b
+        ON b.id = sr.id
+    WHERE sr.ev_epoch >= ISNULL(b.inicio_contagem_epoch, sr.ev_epoch)
+      AND (b.close_date IS NULL OR sr.ev_epoch <= b.close_date)
 )
 SELECT
     id,

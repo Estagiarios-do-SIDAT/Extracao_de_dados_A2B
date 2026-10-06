@@ -88,7 +88,20 @@ Por que nunca é usado? O Plano C só entraria se o chamado não tivesse data de
 
 ## 5\. O que conta como "trabalhando"
 
-Só contam dois status: "Em andamento" e "Aberto, aguarda atendimento" (a fila inicial). Qualquer outro pausa o cronômetro.
+Contam três status: "Em andamento", "Aberto, aguarda atendimento" (a fila inicial) e "Reaberto". Qualquer outro pausa o cronômetro.
+
+"Reaberto" conta por orientação do gerente (2026-10-06): quando o analista encerra o chamado por engano como "Resolvido, concluído", o correto é reabrir e pôr o status certo, e esse tempo é de atendimento. Como os outros status, só conta dentro da posse da A2B; é um status de trabalho (não é fila), então segue a mesma regra do "Em andamento" herdado (seção 7.1). O `Indicador Reabertura` continua sendo só um indicador: ele diz que houve reabertura e não soma tempo.
+
+**SOLN seguido de reabertura.** Quando o próximo evento de status depois de um `SOLN` é a reabertura (`RO`, "Resolvido, concluído" → "Reaberto"), o trecho `SOLN → RO` é período resolvido e não conta; o "Reaberto" volta a contar. A pausa vai exatamente do `SOLN` ao `RO`. Um `SOLN` sem reabertura em seguida não muda a linha de status. No fluxo `Em andamento → SOLN → Reaberto → Em homologação`:
+
+| Trecho | Conta? |
+|---|---|
+| Em andamento até o `SOLN` | sim |
+| `SOLN` até o `RO` (chamado resolvido) | não |
+| "Reaberto" até o próximo status | sim |
+| Em homologação | não |
+
+A regra vale nos dois cálculos de status (Cálculo 1 e Cálculo 2). O motor de rotina (intervalo abertura → fechamento) não muda.
 
 No SQL (tabela `#StatusEvA2B`, marcação do que é ativo):
 
@@ -97,6 +110,8 @@ CASE
     WHEN dest.destino = N'Em andamento'
       OR dest.destino = N'In Progress'
       OR dest.destino LIKE N'Aberto%aguarda%atendimento%'
+      OR dest.destino = N'Reaberto'
+      OR dest.destino = N'Reopened'
         THEN 1 ELSE 0
 END AS destino\_ativo
 ```
@@ -299,7 +314,7 @@ Conta o "Em andamento" **mais a fila de espera** ("Aberto, aguarda atendimento")
 
 **Cálculo 2 — histórico de status** (`#TempoAtendimentoStatusLead`)
 
-Conta **só o "Em andamento"**, sem a fila. Mas não faz essa exigência: conta o "Em andamento" a partir do momento em que a A2B assumiu o chamado. Assim, aproveita a parte que foi da A2B mesmo quando o status já vinha ligado de antes. (Continua sem contar o tempo do outro grupo: só conta o que caiu dentro da janela da A2B.)
+Conta **só o "Em andamento"** (e o "Reaberto"), sem a fila. Mas não faz essa exigência: conta o "Em andamento" a partir do momento em que a A2B assumiu o chamado. Assim, aproveita a parte que foi da A2B mesmo quando o status já vinha ligado de antes. (Continua sem contar o tempo do outro grupo: só conta o que caiu dentro da janela da A2B.)
 
 > \*Exemplo:\* no mesmo caso, o Cálculo 2 conta das 14:00 (entrada na A2B) às 16:00: \*\*2h\*\*. A consulta fica com o maior dos dois, 2h.
 
@@ -350,12 +365,12 @@ cheio (`excedente / 3600`).
 |Começo|`#InicioContagemA2B`|entrada na A2B; senão a abertura|
 |Captura|`#CapturaStatus`|1ª ida para "Em andamento"|
 |Terminal|`#TerminalFARC`|resolução se consistente; senão fechamento|
-|Ativo|`#StatusEvA2B`|"Em andamento" e "Aberto, aguarda atendimento"|
+|Ativo|`#StatusEvA2B`|"Em andamento", "Aberto, aguarda atendimento" e "Reaberto"|
 |Janelas|`#JanelasA2B`|todos os períodos sob a A2B (reposse)|
 |Piso/herdado|`#PisoInicial` / `#PecasAtivasA2B`|corta criação e "Em andamento" herdado|
 |Feriados|`#FeriadosFixos` / `#FeriadosPorData`|exclui feriados e facultativos dos cálculos comerciais P3/P4/P5|
 |Soma (interseção)|`#TempoAtivoJanelasA2B`|tempo ativo nas janelas A2B; corrida (P1/P2) ou comercial 08h-20h com calendário (P3/P4/P5)|
-|Soma (por status)|`#StatusEventosLead`→`#IntervalosLead`→`#TempoAtendimentoStatusLead`|"Em andamento" por mudança de status, recortado nas janelas A2B e no calendário comercial|
+|Soma (por status)|`#StatusEventosLead`→`#IntervalosLead`→`#TempoAtendimentoStatusLead`|"Em andamento" e "Reaberto" por mudança de status, recortados nas janelas A2B e no calendário comercial|
 |Resultado|`tempo\_atendimento\_seg`|rotina de Passagem de turno/Job Summary (abertura→fechamento) ou o maior entre os dois caminhos normais|
 
 \---
