@@ -1034,6 +1034,10 @@ CROSS APPLY (
 ) AS a
 WHERE al.system_time IS NOT NULL
   AND a.anchor > 0
+  -- So registros de status do proprio chamado. REL_TICKET traz o status de uma
+  -- mudanca relacionada ("Requisicao de mudanca: ... alterado de 'RDM' para
+  -- 'Aprovada'") e nao pode virar status do chamado.
+  AND al.[type] IN ('ST', 'RE', 'RO', 'CL', 'CLREQ')
   AND (b.close_date IS NULL OR al.system_time <= b.close_date);
 
 CREATE INDEX IX_StatusRaw_id_epoch ON #StatusRaw(id, ev_epoch);
@@ -1452,6 +1456,7 @@ IF OBJECT_ID('tempdb..#StatusEventosLead') IS NOT NULL DROP TABLE #StatusEventos
     JOIN #LogEscopo AS al
         ON al.call_req_id = b.persid
     WHERE al.system_time IS NOT NULL
+      AND al.[type] IN ('ST', 'RE', 'RO', 'CL', 'CLREQ') -- so status do proprio chamado (sem REL_TICKET)
       AND al.system_time >= ISNULL(b.inicio_contagem_epoch, al.system_time)
       AND (b.close_date IS NULL OR al.system_time <= b.close_date)
       AND (

@@ -24862,3 +24862,22 @@ reabertura, para não misturar uma correção ampla de `SOLN` com a regra de
   possível defeito independente, a avaliar em outra rodada: depois do `SOLN` de
   08/09/2025 09:33:53 o próximo evento é "Agendado → Em andamento" (19:23:29),
   e as 9:49:36 entre eles contam como "Em andamento".
+
+## 74. 2026-10-06 — `REL_TICKET` fora da linha de status
+
+Defeito: `#StatusRaw` ([6.3.4]) e o motor LEAD ([8B]) aceitavam qualquer tipo
+de evento com "alterado de". Um `REL_TICKET` ("Requisição de mudança: M6145
+Status alterado de 'RDM' para 'Aprovada'") virava status do chamado
+("Aprovada", "Suspensa", "Implementação em andamento") e pausava a contagem.
+
+Correção: os dois blocos aceitam só os registros de status do próprio chamado
+(`ST`, `RE`, `RO`, `CL`, `CLREQ`), na consulta e no painel. Nas populações
+publicadas, esses são os únicos tipos com transição de status além do
+`REL_TICKET`.
+
+Efeito:
+
+- painel de 12 ciclos (2.479 chamados): população e 35 colunas idênticas a
+  `af35e33`; os 2 `REL_TICKET` da janela não mudavam métrica; painel x consulta
+  individual sem diferença;
+- ciclos de 24/01/2025 a 23/09/2026 (4.086 chamados): população idêntica; só o 1603369 muda, com `Tempo de Atendimento` de 0:43:14 para 1:20:15 (+37:01), sem excesso e com meta e FARC iguais.

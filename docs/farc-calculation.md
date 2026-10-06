@@ -103,6 +103,8 @@ Contam três status: "Em andamento", "Aberto, aguarda atendimento" (a fila inici
 
 A regra vale nos dois cálculos de status (Cálculo 1 e Cálculo 2). O motor de rotina (intervalo abertura → fechamento) não muda.
 
+**De onde vêm os status.** A linha de status usa só os registros de status do próprio chamado: `ST`, `RE`, `RO`, `CL` e `CLREQ`. O texto da transição é procurado em `description` e `action_desc`. Um `REL_TICKET` ("Requisição de mudança: … Status alterado de 'RDM' para 'Aprovada'") traz o status de uma mudança relacionada e é ignorado. Os dois cálculos de status seguem essa regra.
+
 No SQL (tabela `#StatusEvA2B`, marcação do que é ativo):
 
 ```sql
