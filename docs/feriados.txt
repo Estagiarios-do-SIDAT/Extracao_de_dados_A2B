@@ -1,0 +1,108 @@
+CALENDÁRIO DE FERIADOS E PONTOS FACULTATIVOS DO TCU
+
+Calendário comum usado no cálculo de FAIA e FARC (Virtual, Decision e A2B).
+Cópias idênticas em docs/feriados.txt de cada repositório
+(Extracao_de_dados_Decision, _A2B, _COI e _Virtual) e em
+Documentos e Relatórios/feriados.txt. Explicações, nomes das datas e
+Portarias: docs/feriados.md.
+
+Como o arquivo é lido: só contam as linhas que têm apenas uma data
+(DD-MM ou DD-MM-AAAA). Títulos, linhas vazias e parágrafos são ignorados.
+
+
+## Regras
+
+- 24x7: feriados e pontos facultativos não interrompem a contagem.
+- Horário TCU: conta somente segunda a sexta, das 08:00 às 20:00,
+  excluindo as datas cadastradas neste arquivo.
+- Feriados Fixos usam DD-MM e se repetem automaticamente em todos os anos.
+- Todas as datas com ano usam DD-MM-AAAA e valem somente para aquele ano.
+- O dia cadastrado fica inteiro fora do Horário TCU (não há meio expediente).
+- Fonte: as Portarias do TCU de cada ano e as que as alteram. Não entram
+  feriados estaduais, municipais ou de outros órgãos.
+- Ao sair a Portaria de um novo ano, cadastrar só as datas daquele ano
+  (seções com ano); os Feriados Fixos já valem para ele.
+
+
+## Feriados Fixos
+
+Feriados que se repetem todos os anos.
+Formato: DD-MM.
+Fonte: feriados nacionais listados nas Portarias-TCU nº 10/2025 e nº 1/2026.
+
+01-01
+21-04
+01-05
+07-09
+12-10
+02-11
+15-11
+20-11
+25-12
+
+
+## Feriados Por Data
+
+Feriados válidos apenas para a data informada e que não pertencem às
+categorias de feriado móvel/diferenciado ou ponto facultativo.
+Formato: DD-MM-AAAA.
+Nenhuma data cadastrada até agora.
+
+
+## Feriados móveis/diferenciados
+
+Feriados cuja data muda de ano para ano ou que precisam ser cadastrados
+especificamente para determinado ano (Paixão de Cristo).
+Formato: DD-MM-AAAA.
+
+Ano de 2025. Fontes:
+- Portaria-TCU nº 10/2025 (BTCU, autenticidade 77411949)
+18-04-2025
+
+Ano de 2026. Fontes:
+- Portaria-TCU nº 1/2026 (BTCU, autenticidade 79561193)
+03-04-2026
+
+
+## Pontos Facultativos
+
+Pontos facultativos definidos pelo TCU para o ano informado (Carnaval,
+Quarta-Feira de Cinzas, Corpus Christi, emendas, vésperas, Dia do
+Servidor e datas extraordinárias).
+Não se repetem automaticamente nos anos seguintes.
+Formato: DD-MM-AAAA.
+
+Ano de 2025. Fontes:
+- Portaria-TCU nº 10/2025 (BTCU, autenticidade 77411949)
+- Portaria-TCU nº 67/2025 (BTCU, autenticidade 77981373)
+- Portaria-TCU nº 157/2025 (BTCU, autenticidade 79190602)
+- Portaria-TCU nº 176/2025 (BTCU, autenticidade 79506777)
+03-03-2025
+04-03-2025
+05-03-2025
+17-04-2025
+02-05-2025
+19-06-2025
+20-06-2025
+27-10-2025
+21-11-2025
+24-12-2025
+26-12-2025
+31-12-2025
+
+Ano de 2026. Fontes:
+- Portaria-TCU nº 1/2026 (BTCU, autenticidade 79561193)
+- Portaria-TCU nº 179/2025
+- Portaria-TCU nº 93/2026 (BTCU, autenticidade 80587034)
+02-01-2026
+16-02-2026
+17-02-2026
+18-02-2026
+02-04-2026
+20-04-2026
+04-06-2026
+05-06-2026
+29-06-2026
+28-10-2026
+24-12-2026
+31-12-2026

@@ -68,7 +68,7 @@ O SQL não é mais colado em **Instrução SQL**: os feriados vêm de um arquivo
 
 1. **Página Inicial → Nova Fonte → Consulta Nula → Editor Avançado.**
 2. Cole o conteúdo inteiro de `consulta_faia_farc_power_bi.m`.
-3. Troque `INSERIR_URL_DO_ARQUIVO_FERIADOS_NO_SHAREPOINT` pelo link direto do `feriados.csv` no SharePoint (o mesmo da Virtual e da Decision).
+3. Troque `INSERIR_URL_DO_ARQUIVO_FERIADOS_NO_SHAREPOINT` pelo link direto do `feriados.txt` no SharePoint (o mesmo da Virtual e da Decision).
 4. Credenciais: SQL Server como hoje; SharePoint com **conta organizacional**. Privacidade das duas fontes: **Organizacional**. No gateway, permitir fontes de nuvem.
 5. Carregue e, na primeira vez, confira a quantidade de chamados (ver [seção 11](#11-conferência)).
 6. Nas próximas vezes, basta **Atualizar**: o período se ajusta sozinho (ver [seção 5](#5-período-da-consulta)) e o arquivo de feriados é lido de novo.
@@ -275,16 +275,16 @@ Um chamado pode atender o FAIA (alguém pegou em 5 minutos) e estourar o FARC (s
 
 ## 10. Feriados e pontos facultativos
 
-A lista de datas que **não** são dias úteis fica no **arquivo de feriados** (`feriados.csv`), e não no SQL: no SharePoint para o painel, lido a cada atualização, e em `config/feriados.csv` para as consultas individuais. É o calendário do TCU, o mesmo para Virtual, Decision e A2B (não há lista por projeto). Formato, validação e falhas em [feriados.md](feriados.md). A lista é usada só no **calendário comercial** (P3, P4 e P5). Chamados **P1 e P2 contam corrido** e ignoram essa lista por completo.
+A lista de datas que **não** são dias úteis fica no **calendário** `feriados.txt`, e não no SQL: no SharePoint para o painel, lido a cada atualização, e em `docs/feriados.txt` para as consultas individuais. É o calendário do TCU, o mesmo para Virtual, Decision e A2B (não há lista por projeto). Formato, validação e falhas em [feriados.md](feriados.md). A lista é usada só no **calendário comercial** (P3, P4 e P5). Chamados **P1 e P2 contam corrido** e ignoram essa lista por completo.
 
 O bloco `[S.2]` do SQL recebe a lista no parâmetro `@Feriados`, valida e monta **duas** tabelas, e o FAIA e o FARC usam **as mesmas duas** — não existe um calendário para cada indicador:
 
-| Estrutura | O que guarda | `Data` no arquivo |
+| Estrutura | O que guarda | Data no arquivo (seção) |
 |---|---|---|
-| `#PBI_FeriadosFixos` | Feriados que caem sempre no mesmo dia, todo ano | `MM-DD` — ex.: `12-25` |
-| `#PBI_FeriadosPorData` | Feriados móveis e pontos facultativos do TCU | `AAAA-MM-DD` — ex.: `2026-06-05` |
+| `#PBI_FeriadosFixos` | Feriados que caem sempre no mesmo dia, todo ano | `DD-MM` em `## Feriados Fixos` — ex.: `25-12` |
+| `#PBI_FeriadosPorData` | Feriados móveis/diferenciados, feriados por data e pontos facultativos do TCU | `DD-MM-AAAA` nas seções com ano — ex.: `05-06-2026` |
 
-A diferença é só essa: o que se repete todo ano entra **uma vez** como `MM-DD` e vale para sempre; o que muda de data a cada ano (Carnaval, Páscoa, emendas) entra como `AAAA-MM-DD`, **ano a ano**.
+A diferença é só essa: o que se repete todo ano entra **uma vez** como `DD-MM` e vale para sempre; o que muda de data a cada ano (Carnaval, Paixão de Cristo, emendas) entra como `DD-MM-AAAA`, **ano a ano**. O script e o `.m` convertem para o formato do SQL (`MM-DD`, `AAAA-MM-DD`) antes de enviar `@Feriados`.
 
 O que entra em cada lista:
 
@@ -298,14 +298,14 @@ O que entra em cada lista:
 
 ### Como atualizar
 
-1. Abra o `feriados.csv` no SharePoint.
-2. Acrescente uma linha por data, no formato `Data,Descricao,Fonte`, com a Portaria na coluna `Fonte`. Ex.: `2026-06-05,Ponto facultativo - emenda após Corpus Christi,Portaria-TCU nº 1/2026`. Feriados nacionais fixos (`MM-DD`) já valem todo ano e não se repetem.
+1. Abra o `feriados.txt` no SharePoint.
+2. Acrescente a data, sozinha na linha, na seção certa (`## Feriados móveis/diferenciados` ou `## Pontos Facultativos`), com a Portaria num parágrafo da seção. Ex.: `05-06-2026` em `## Pontos Facultativos` (Portaria-TCU nº 1/2026). Feriados nacionais fixos (`DD-MM`) já valem todo ano e não se repetem.
 3. Não inclua sábados e domingos — já são tratados automaticamente.
 4. Salve. A próxima atualização do painel já usa a lista nova: não é preciso mudar o SQL nem republicar o relatório.
-5. Copie o mesmo conteúdo para o `config/feriados.csv` dos três repositórios (Virtual, Decision, A2B) e rode `tools/verificar_feriados.ps1`; as consultas individuais passam a usar a lista nova.
+5. Copie o mesmo arquivo para o `docs/feriados.txt` de todos os repositórios (Virtual, Decision, A2B e COI) e para `Documentos e Relatórios/feriados.txt`, e rode `tools/verificar_feriados.ps1`; as consultas individuais passam a usar a lista nova.
 6. Valide um chamado P3/P4/P5 que atravesse a nova data.
 
-Data inválida, coluna ausente ou arquivo inacessível **falham a atualização** com mensagem. Data repetida entra uma vez só.
+Data inválida, repetida, fora do formato ou fora da seção certa, ou arquivo inacessível, **falham a atualização** com mensagem.
 
 > **Manutenção anual.** Os feriados fixos já estão prontos e não precisam de nada. O que precisa de atenção **todo ano** são as datas únicas: os feriados móveis e os pontos facultativos do TCU de cada ano coberto pela janela.
 
@@ -439,16 +439,16 @@ pela equipe responsável quando a cobertura muda em definitivo.
 Sem mexer no SQL nem republicar o relatório:
 
 1. Confirme a data na fonte oficial do TCU (seção 10).
-2. Abra o `feriados.csv` no SharePoint.
-3. **Adicionar:** inclua a linha (`AAAA-MM-DD`), com a Portaria na coluna `Fonte`. Feriados nacionais fixos (`MM-DD`) já valem todo ano.
-4. **Corrigir:** edite a data, a descrição ou a fonte na linha existente.
-5. **Remover:** apague a linha inteira.
+2. Abra o `feriados.txt` no SharePoint.
+3. **Adicionar:** inclua a data (`DD-MM-AAAA`) na seção certa, com a Portaria num parágrafo da seção. Feriados nacionais fixos (`DD-MM`) já valem todo ano.
+4. **Corrigir:** edite a data na linha existente.
+5. **Remover:** apague a linha da data.
 6. Salve. A próxima atualização do painel já usa a lista nova.
-7. Copie o mesmo conteúdo para o `config/feriados.csv` dos três repositórios e rode `tools/verificar_feriados.ps1`; as consultas individuais passam a usar a lista nova.
+7. Copie o mesmo arquivo para o `docs/feriados.txt` de todos os repositórios (inclusive o COI) e para `Documentos e Relatórios/feriados.txt`, e rode `tools/verificar_feriados.ps1`; as consultas individuais passam a usar a lista nova.
 
 **Cuidados.**
 
-- Data inválida, escopo desconhecido ou arquivo inacessível **falham a atualização** com a linha do problema. Data repetida entra uma vez só.
+- Data inválida, repetida, fora do formato, fora da seção certa, seção desconhecida ou arquivo inacessível **falham a atualização** com a linha do problema.
 - Um dia cadastrado deixa de contar como tempo **comercial** (P3, P4 e P5). P1 e P2 contam corrido e não mudam.
 - Os valores só mudam depois de **atualizar**. Como o cálculo usa a vida inteira de cada chamado, uma data nova pode alterar chamados de ciclos já carregados.
 - Incluir uma data nova **muda resultado**. Na A2B, isso exige validação antes de ir para o painel.

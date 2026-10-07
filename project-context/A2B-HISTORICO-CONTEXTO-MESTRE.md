@@ -24998,3 +24998,39 @@ a pôr tudo num único passo `Fonte`. Validado com o motor do Power BI Desktop
 Organizacional, firewall ativo e sem `FastCombine`; M = SQL (2.479 linhas, 35
 colunas, 0 diferenças). SharePoint Online real, OAuth2, PBIX, gateway e
 refresh no serviço ainda dependem do ambiente.
+
+## 78. 2026-10-07 — calendário de feriados em TXT (`docs/feriados.txt`)
+
+Mudança só de armazenamento do calendário; nenhuma regra de cálculo mudou.
+`config/feriados.csv` (`Data,Descricao,Fonte`) foi substituído por
+`docs/feriados.txt`: texto simples em seções (`## Regras`,
+`## Feriados Fixos` com `DD-MM`, `## Feriados Por Data`,
+`## Feriados móveis/diferenciados` e `## Pontos Facultativos` com
+`DD-MM-AAAA`), uma data por linha. Gerado por script a partir do CSV, sem
+reconstruir datas: 9 fixos, 2 móveis (Paixão de Cristo 2025 e 2026), 24
+pontos facultativos (classificados pela própria descrição do CSV), nenhum em
+Feriados Por Data. Nomes e Portarias de cada data: parágrafos do arquivo e
+tabela de `docs/feriados.md`, seção 2.
+
+Cópias byte a byte idênticas em `docs/feriados.txt` de Decision, A2B, COI e
+Virtual e em `Documentos e Relatórios/feriados.txt` (pasta fora do Git, só para
+consulta humana); cada repositório lê só a sua cópia.
+
+Leitor (`tools/feriados.ps1`, igual nos três repositórios) e Power Query
+(`tools/gerar_powerbi_m.ps1`) com as mesmas regras: só contam linhas que são
+apenas `DD-MM` ou `DD-MM-AAAA`; data inexistente, linha que parece data fora do
+formato, data repetida, data fora da seção certa, seção desconhecida, arquivo
+ausente, vazio ou fora de UTF-8 interrompem com a linha do problema; data com
+ano que cai em feriado fixo só gera aviso. As datas continuam indo ao SQL em
+`@Feriados` como `MM-DD` / `AAAA-MM-DD`; a `descricao` passou a ser o nome da
+seção. SQL: só a linha de comentário que citava o CSV.
+
+Equivalência: mesmas 35 datas normalizadas (PowerShell = M = CSV antigo); de
+2025-01-01 a 2027-12-31, 53 datas de feriado/ponto facultativo e 357 dias fora
+do Horário TCU antes e depois, 0 perdidas, 0 novas.
+
+Regressão na A2B (leitor antigo + SQL anterior x leitor novo + SQL atual, em
+sequência): FAIA (234 chamados), FARC (234) e Power BI (2.479 linhas, 35
+colunas): 0 diferenças em todas as colunas. A descrição do feriado não aparece
+em nenhuma saída da A2B. `.m` regenerado: M = SQL do Power BI (2.479 linhas,
+35 colunas) no motor do Power BI Desktop, Organizacional + Organizacional.

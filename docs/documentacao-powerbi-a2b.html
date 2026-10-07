@@ -69,17 +69,17 @@ Sem aspas duplas neste arquivo: pode ser colado dentro de uma medida DAX. -->
 <p>É o <b>único</b> número que muda; a regra do ciclo, do dia 24 até o final do dia 23 do mês seguinte, não depende dele.</p>
 
 <h3 style='font-size:14px;margin:10px 0 4px 0'>Atualizar feriados e pontos facultativos</h3>
-<p>Ficam no <b>arquivo de feriados</b> (feriados.csv), no SharePoint, e <b>não no SQL</b>. O painel lê o arquivo a cada atualização; a lista vale para FAIA e FARC. É o calendário do TCU, o mesmo da Virtual e da Decision. Colunas: <b>Data</b>, <b>Descricao</b>, <b>Fonte</b> (a Portaria do TCU):</p>
+<p>Ficam no <b>calendário</b> (feriados.txt), no SharePoint, e <b>não no SQL</b>. O painel lê o arquivo a cada atualização; a lista vale para FAIA e FARC. É o calendário do TCU, o mesmo da Virtual e da Decision. Texto simples, em seções, uma data por linha:</p>
 <ul style='margin-top:4px'>
-<li><b>MM-DD</b> — feriados nacionais fixos; cadastrados uma vez, valem todo ano. Ex.: 12-25,Natal,Feriado nacional fixo</li>
-<li><b>AAAA-MM-DD</b> — feriados móveis e pontos facultativos do TCU, por ano, conforme a Portaria. Ex.: 2026-06-05,Ponto facultativo - emenda após Corpus Christi,Portaria-TCU nº 1/2026</li>
+<li><b>DD-MM</b>, na seção Feriados Fixos — feriados nacionais fixos; cadastrados uma vez, valem todo ano. Ex.: 25-12</li>
+<li><b>DD-MM-AAAA</b>, nas seções Feriados móveis/diferenciados e Pontos Facultativos — por ano, conforme a Portaria. Ex.: 05-06-2026</li>
 </ul>
 <p><b>Fonte obrigatória:</b> somente a portaria anual do TCU que define feriados e pontos facultativos do ano, publicada no Boletim do TCU, <b>e todas as portarias que a alterarem</b>. Consulte em pesquisa.apps.tcu.gov.br, base Normas. Não use calendário civil genérico nem de outro órgão.</p>
 <ol style='margin-top:4px'>
-<li>Abra o <b>feriados.csv</b> no SharePoint e adicione, corrija ou apague a linha. Não cadastre sábado nem domingo.</li>
+<li>Abra o <b>feriados.txt</b> no SharePoint e adicione, corrija ou apague a data na seção certa. Não cadastre sábado nem domingo.</li>
 <li>Salve. A próxima atualização do painel já usa a lista nova: não é preciso mudar o SQL nem republicar o relatório.</li>
-<li>Mantenha igual a cópia config/feriados.csv dos repositórios da Virtual, da Decision e da A2B, usada pelas consultas de referência.</li>
-<li>Data inválida, coluna ausente ou arquivo inacessível <b>falham a atualização</b> com mensagem; o painel nunca é calculado sem feriados.</li>
+<li>Mantenha igual a cópia docs/feriados.txt dos repositórios (Virtual, Decision, A2B e COI), usada pelas consultas de referência.</li>
+<li>Data inválida, repetida ou fora do formato, ou arquivo inacessível <b>falham a atualização</b> com mensagem; o painel nunca é calculado sem feriados.</li>
 </ol>
 <p><b>Efeito:</b> o dia cadastrado deixa de contar como tempo <b>comercial</b> (P3 a P5). P1 e P2 não mudam. Os valores só mudam depois de atualizar, e podem mudar para chamados de ciclos já carregados. Incluir uma data <b>muda resultado</b>: na A2B, valide antes de publicar.</p>
 

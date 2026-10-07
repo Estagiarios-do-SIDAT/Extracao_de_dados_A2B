@@ -90,19 +90,21 @@ Ela:
 docs/faia-calculation.md             como o FAIA é calculado
 docs/farc-calculation.md             como o FARC é calculado
 docs/powerbi-query.md                a consulta do painel: período, manutenção de ciclos e feriados, colunas
-docs/feriados.md                     o arquivo de feriados (igual nos três repositórios)
+docs/feriados.txt                    o calendário de feriados e pontos facultativos (igual em todos os repositórios)
+docs/feriados.md                     regras, formato e fontes do calendário (igual nos três repositórios)
 docs/documentacao-powerbi-a2b.html   a mesma documentação do painel, para o visual HTML Content
 ```
 
-**Feriados — `config/`, `tools/` e `powerbi/*.m`.** Os feriados e pontos
-facultativos não ficam mais nos SQLs. Ficam no arquivo de feriados:
-`config/feriados.csv` (cópia versionada, igual nos repositórios da Virtual, da
-Decision e da A2B) e o mesmo arquivo no SharePoint, lido pelo painel a cada
-atualização. Para incluir um feriado, basta editar o arquivo no SharePoint e
+**Feriados — `docs/feriados.txt`, `tools/` e `powerbi/*.m`.** Os feriados e
+pontos facultativos não ficam mais nos SQLs. Ficam no calendário
+`docs/feriados.txt` (cópia versionada, igual em todos os repositórios) e no
+mesmo arquivo no SharePoint, lido pelo painel a cada atualização. É texto
+simples, em seções: feriados fixos como `DD-MM` e datas de um ano como
+`DD-MM-AAAA`. Para incluir um feriado, basta editar o arquivo no SharePoint e
 salvar: não se muda o SQL nem se republica o relatório.
 
 ```text
-config/feriados.csv                  feriados e pontos facultativos do TCU (Data, Descricao, Fonte)
+docs/feriados.txt                    calendário de feriados e pontos facultativos do TCU (DD-MM, DD-MM-AAAA)
 powerbi/consulta_faia_farc_power_bi.m consulta do painel (Power Query M): feriados do SharePoint + SQL
 tools/executar_consulta.ps1          executa queries/ com os feriados do arquivo
 tools/gerar_powerbi_m.ps1            gera powerbi/*.m a partir do .sql
@@ -134,7 +136,7 @@ Essas consultas não calculam FAIA nem FARC. Elas servem para investigar chamado
 1. Abra o arquivo SQL do fornecedor e indicador desejado.
 2. Ajuste o período de apuração nos parâmetros de data.
 3. Mantenha `@MostrarDiagnostico = 0` para uso normal no relatório.
-4. Execute pelo script, que lê os feriados de `config/feriados.csv` e grava o resultado em CSV: `.\tools\executar_consulta.ps1 -Consulta .\queries\<consulta>.sql -Saida C:\temp\a2b` (`-GerarSql` gera uma cópia para o SSMS). Aberto direto no SSMS, sem o script, o arquivo falha com *Must declare the scalar variable "@Feriados"*.
+4. Execute pelo script, que lê os feriados de `docs/feriados.txt` e grava o resultado em CSV: `.\tools\executar_consulta.ps1 -Consulta .\queries\<consulta>.sql -Saida C:\temp\a2b` (`-GerarSql` gera uma cópia para o SSMS). Aberto direto no SSMS, sem o script, o arquivo falha com *Must declare the scalar variable "@Feriados"*.
 5. Exporte o resultado.
 6. Compare com os arquivos recebidos do fornecedor.
 7. Salve a análise na pasta `analysis/` correspondente.

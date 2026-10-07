@@ -131,7 +131,7 @@ VALUES
 -- [SLA+] Feriados e pontos facultativos (para o recorte comercial P3/P4/P5)
 --
 -- A lista de feriados NAO fica mais neste arquivo. Ela vem do arquivo de
--- feriados (config/feriados.csv; no Power BI, a copia no SharePoint), o mesmo
+-- feriados (docs/feriados.txt; no Power BI, a copia no SharePoint), o mesmo
 -- calendario do TCU para Virtual, Decision e A2B, pelo parametro @Feriados
 -- (JSON):
 --   [{"data":"12-25","descricao":"Natal"},{"data":"2026-04-03","descricao":"..."}]

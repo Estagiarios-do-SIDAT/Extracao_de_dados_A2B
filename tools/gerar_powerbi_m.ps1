@@ -5,9 +5,12 @@
 .DESCRIPTION
     O calculo de horas comerciais acontece no SQL Server, que nao le o
     SharePoint. O codigo M gerado:
-      1. le o arquivo de feriados no SharePoint (Web.Contents, URL direta);
-      2. valida cada linha (Data MM-DD ou AAAA-MM-DD; colunas Data, Descricao
-         e Fonte) e falha a atualizacao com mensagem clara em qualquer problema;
+      1. le o arquivo de feriados (feriados.txt) no SharePoint (Web.Contents,
+         URL direta);
+      2. valida cada linha com as regras de tools/feriados.ps1 (DD-MM nos
+         Feriados Fixos, DD-MM-AAAA nas secoes com ano; titulos e paragrafos
+         ignorados) e falha a atualizacao com mensagem clara em qualquer
+         problema;
       3. envia a lista ao SQL como PARAMETRO @Feriados (JSON), sem concatenar
          texto do arquivo no SQL;
       4. executa a consulta (Value.NativeQuery) e devolve o mesmo resultado.
@@ -49,13 +52,13 @@ $m = @"
 //
 // Uso (uma vez): Power Query > Pagina Inicial > Nova Fonte > Consulta Nula >
 // Editor Avancado > colar este arquivo inteiro. Depois, preencher
-// UrlArquivoFeriados com o link direto do arquivo feriados.csv no SharePoint.
+// UrlArquivoFeriados com o link direto do arquivo feriados.txt no SharePoint.
 //
 // Feriados: a cada atualizacao o arquivo e lido de novo. Ele e o mesmo para
 // Virtual, Decision e A2B (calendario do TCU). Qualquer problema (link nao
-// preenchido, arquivo inacessivel, coluna ausente, data invalida, arquivo sem
-// feriados) FALHA a atualizacao com mensagem; o relatorio nunca e calculado
-// com zero feriados.
+// preenchido, arquivo inacessivel, codificacao invalida, data invalida ou
+// repetida, secao desconhecida, arquivo sem datas) FALHA a atualizacao com
+// mensagem; o relatorio nunca e calculado com zero feriados.
 //
 // Privacidade: SharePoint e SQL Server como Organizacional. Tudo fica num
 // unico passo (Fonte) para o firewall de privacidade avaliar as duas fontes na
@@ -66,62 +69,87 @@ let
         let
             // ---- CONFIGURACAO (preencher uma unica vez) ---------------------
             // Link direto do arquivo, por exemplo:
-            //   https://<empresa>.sharepoint.com/sites/<site>/Shared%20Documents/<pasta>/feriados.csv
+            //   https://<empresa>.sharepoint.com/sites/<site>/Shared%20Documents/<pasta>/feriados.txt
             // Servidor e banco da consulta SQL: os mesmos da fonte atual do
             // relatorio (conferir no PBIX; estao fixos no fim, em Sql.Database).
             UrlArquivoFeriados = "INSERIR_URL_DO_ARQUIVO_FERIADOS_NO_SHAREPOINT",
 
-            // ---- Leitura do arquivo de feriados -----------------------------
+            // ---- Leitura do arquivo de feriados (feriados.txt) -------------
+            // Mesmas regras de tools/feriados.ps1: so contam linhas que tem
+            // apenas uma data; DD-MM na secao "## Feriados Fixos" e DD-MM-AAAA
+            // nas secoes com ano; titulos, linhas vazias e paragrafos sao
+            // ignorados. Saida para o SQL: MM-DD e AAAA-MM-DD.
             Falha = (mensagem as text) => error Error.Record("Feriados", mensagem),
             Conteudo =
                 if Text.Contains(UrlArquivoFeriados, "INSERIR_") then
-                    Falha("Preencha UrlArquivoFeriados com o link do arquivo feriados.csv no SharePoint.")
+                    Falha("Preencha UrlArquivoFeriados com o link do arquivo feriados.txt no SharePoint.")
                 else Binary.Buffer(Web.Contents(UrlArquivoFeriados)),
-            Texto = Text.Replace(Text.FromBinary(Conteudo, TextEncoding.Utf8), "#(FEFF)", ""),
-            // Separador: virgula, ou ponto e virgula (Excel em portugues), pelo cabecalho.
-            PrimeiraLinha = List.First(Lines.FromText(Texto), ""),
-            Separador = if List.ContainsAll(List.Transform(Text.Split(PrimeiraLinha, ";"), each Text.Trim(Text.Trim(_), """")), {"Data", "Fonte"}) then ";" else ",",
-            Csv = Csv.Document(Texto, [Delimiter = Separador, QuoteStyle = QuoteStyle.Csv]),
-            ComCabecalho = Table.PromoteHeaders(Csv, [PromoteAllScalars = true]),
-            NomesLimpos = Table.TransformColumnNames(ComCabecalho, each Text.Trim(_)),
-            ColunasFaltando = List.Difference({"Data", "Descricao", "Fonte"}, Table.ColumnNames(NomesLimpos)),
-            Tabela =
-                if List.IsEmpty(ColunasFaltando) then Table.SelectColumns(NomesLimpos, {"Data", "Descricao", "Fonte"})
-                else Falha("Coluna(s) ausente(s) no arquivo de feriados: " & Text.Combine(ColunasFaltando, ", ")),
-            ComLinha = Table.AddIndexColumn(Tabela, "Linha", 2, 1),
-
-            // ---- Validacao (mesmas regras de tools/feriados.ps1) ------------
-            Txt = (v) => if v = null then "" else Text.Trim(Text.From(v)),
-            SoDigitos = (t as text) => Text.Length(t) > 0 and Text.Length(Text.Select(t, {"0".."9"})) = Text.Length(t),
+            Utf16 = List.Contains({#binary({255, 254}), #binary({254, 255})}, Binary.Range(Conteudo, 0, 2)),
+            TextoBruto =
+                if Utf16 then Falha("Arquivo de feriados com codificacao invalida (salve em UTF-8, nao UTF-16).")
+                else Text.Replace(Text.FromBinary(Conteudo, TextEncoding.Utf8), "#(FEFF)", ""),
+            Texto =
+                if Text.Contains(TextoBruto, "#(FFFD)") or Text.Contains(TextoBruto, "#(0000)") then
+                    Falha("Arquivo de feriados com codificacao invalida (salve em UTF-8).")
+                else if Text.Trim(TextoBruto) = "" then Falha("Arquivo de feriados vazio.")
+                else TextoBruto,
+            SemAcento = (s as text) as text => List.Accumulate(
+                {{"#(00E1)", "a"}, {"#(00E0)", "a"}, {"#(00E2)", "a"}, {"#(00E3)", "a"}, {"#(00E9)", "e"}, {"#(00EA)", "e"},
+                 {"#(00ED)", "i"}, {"#(00F3)", "o"}, {"#(00F4)", "o"}, {"#(00F5)", "o"}, {"#(00FA)", "u"}, {"#(00E7)", "c"}},
+                s, (acc, par) => Text.Replace(acc, par{0}, par{1})),
+            NomeSecao = (s as text) as text =>
+                Text.Combine(List.Select(Text.SplitAny(SemAcento(Text.Lower(Text.Trim(s))), " #(tab)"), each _ <> ""), " "),
+            Secoes = [
+                #"regras" = null,
+                #"feriados fixos" = "Feriado fixo",
+                #"feriados por data" = "Feriado por data",
+                #"feriados moveis/diferenciados" = "Feriado m#(00F3)vel/diferenciado",
+                #"pontos facultativos" = "Ponto facultativo"
+            ],
+            SoDigitos = (s as text) => Text.Length(s) > 0 and Text.Length(Text.Select(s, {"0".."9"})) = Text.Length(s),
             Dois = (n as number) => Text.PadStart(Text.From(n), 2, "0"),
-            NormalizaData = (t as text, linha as number) as text =>
+            EhFixo = (s as text) => Text.Length(s) = 5 and Text.At(s, 2) = "-" and SoDigitos(Text.Start(s, 2) & Text.End(s, 2)),
+            EhDatada = (s as text) => Text.Length(s) = 10 and Text.At(s, 2) = "-" and Text.At(s, 5) = "-"
+                and SoDigitos(Text.Start(s, 2) & Text.Middle(s, 3, 2) & Text.End(s, 4)),
+            PareceData = (s as text) => Text.Length(s) > 0 and SoDigitos(Text.Start(s, 1))
+                and Text.Select(s, {"0".."9", "-", "/", ".", " ", "#(tab)"}) = s,
+            Erro = (e as record, n as number, msg as text) => e & [erros = e[erros] & {"linha " & Text.From(n) & ": " & msg}],
+            Item = (e as record, n as number, original as text, data as text) =>
+                let anterior = List.Select(e[itens], each _[data] = data) in
+                if List.IsEmpty(anterior) then e & [itens = e[itens] & {[data = data, descricao = Record.Field(Secoes, e[secao]), linha = n]}]
+                else Erro(e, n, "data '" & original & "' repetida (ja na linha " & Text.From(anterior{0}[linha]) & ")"),
+            Linhas = List.Buffer(Lines.FromText(Texto)),
+            Estado = List.Accumulate(List.Positions(Linhas), [secao = null, itens = {}, erros = {}], (e, i) =>
                 let
-                    completa =
-                        if Text.Length(t) = 10 and Text.At(t, 4) = "-" and Text.At(t, 7) = "-"
-                           and SoDigitos(Text.Start(t, 4) & Text.Middle(t, 5, 2) & Text.End(t, 2))
-                        then try #date(Number.From(Text.Start(t, 4)), Number.From(Text.Middle(t, 5, 2)), Number.From(Text.End(t, 2))) otherwise null
-                        else null,
-                    anual =
-                        if Text.Length(t) = 5 and Text.At(t, 2) = "-" and SoDigitos(Text.Start(t, 2) & Text.End(t, 2))
-                        then try #date(2000, Number.From(Text.Start(t, 2)), Number.From(Text.End(t, 2))) otherwise null
-                        else null,
-                    r =
-                        if completa <> null then Text.PadStart(Text.From(Date.Year(completa)), 4, "0") & "-" & Dois(Date.Month(completa)) & "-" & Dois(Date.Day(completa))
-                        else if anual <> null then Dois(Date.Month(anual)) & "-" & Dois(Date.Day(anual))
-                        else null
+                    n = i + 1,
+                    t = Text.Trim(Linhas{i}),
+                    titulo = if Text.StartsWith(t, "##") and Text.Trim(Text.Range(t, 2)) <> "" then NomeSecao(Text.Range(t, 2)) else null
                 in
-                    if r = null then Falha("Data invalida na linha " & Text.From(linha) & ": '" & t & "'. Use MM-DD ou AAAA-MM-DD.") else r,
-            Preenchidas = Table.SelectRows(ComLinha, each Txt([Data]) <> "" or Txt([Descricao]) <> "" or Txt([Fonte]) <> ""),
-            Itens = List.Buffer(List.Transform(Table.ToRecords(Preenchidas), each
-                [data = NormalizaData(Txt(_[Data]), _[Linha]), descricao = Txt(_[Descricao])])),
+                    if titulo <> null then
+                        (if Record.HasFields(Secoes, titulo) then e & [secao = titulo]
+                         else Erro(e & [secao = null], n, "secao desconhecida '" & t & "'"))
+                    else if EhFixo(t) then
+                        (if e[secao] <> "feriados fixos" then Erro(e, n, "feriado fixo '" & t & "' fora da secao '## Feriados Fixos'")
+                         else
+                            let d = try #date(2000, Number.From(Text.End(t, 2)), Number.From(Text.Start(t, 2))) otherwise null in
+                            if d = null then Erro(e, n, "data invalida '" & t & "' (use DD-MM)")
+                            else Item(e, n, t, Dois(Date.Month(d)) & "-" & Dois(Date.Day(d))))
+                    else if EhDatada(t) then
+                        (if e[secao] = null or e[secao] = "regras" or e[secao] = "feriados fixos" then
+                            Erro(e, n, "data '" & t & "' fora das secoes de datas com ano")
+                         else
+                            let d = try #date(Number.From(Text.End(t, 4)), Number.From(Text.Middle(t, 3, 2)), Number.From(Text.Start(t, 2))) otherwise null in
+                            if d = null then Erro(e, n, "data invalida '" & t & "' (use DD-MM-AAAA)")
+                            else Item(e, n, t, Text.PadStart(Text.From(Date.Year(d)), 4, "0") & "-" & Dois(Date.Month(d)) & "-" & Dois(Date.Day(d))))
+                    else if PareceData(t) then Erro(e, n, "formato invalido '" & t & "' (use DD-MM ou DD-MM-AAAA)")
+                    else e),
             // Forca a validacao de TODAS as linhas antes de chamar o SQL.
-            Verificacao = Text.Combine(List.Transform(Itens, each _[data]), ","),
-            // Data repetida entra uma vez so (vale a primeira descricao).
-            Datas = List.Distinct(List.Transform(Itens, each _[data])),
-            ParaSql = List.Transform(Datas, (d) => [data = d, descricao = List.First(List.Select(Itens, each _[data] = d))[descricao]]),
-            FeriadosJson =
-                if Verificacao = "" or List.IsEmpty(ParaSql) then Falha("Nenhum feriado no arquivo de feriados.")
-                else Text.FromBinary(Json.FromValue(ParaSql), TextEncoding.Utf8),
+            Validas =
+                if not List.IsEmpty(Estado[erros]) then Falha("Arquivo de feriados invalido: " & Text.Combine(Estado[erros], "; "))
+                else if List.IsEmpty(Estado[itens]) then Falha("Arquivo de feriados sem nenhuma data.")
+                else Estado[itens],
+            ParaSql = List.Transform(Validas, each [data = _[data], descricao = _[descricao]]),
+            FeriadosJson = Text.FromBinary(Json.FromValue(ParaSql), TextEncoding.Utf8),
 
             // ---- Consulta SQL (powerbi/$nomeSql) ----------------------------
             SqlTexto = "$literal",

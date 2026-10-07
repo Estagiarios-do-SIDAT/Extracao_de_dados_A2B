@@ -1,16 +1,39 @@
-# Leitura e validacao do arquivo de feriados (config/feriados.csv).
+# Leitura e validacao do arquivo de feriados (docs/feriados.txt).
 #
 # Usado por executar_consulta.ps1, gerar_powerbi_m.ps1 e verificar_feriados.ps1.
 # Um unico calendario (o do TCU) para Virtual, Decision e A2B. As regras sao as
 # mesmas do codigo M do Power BI (powerbi/*.m):
-#   - colunas obrigatorias: Data, Descricao, Fonte; separador virgula ou ';';
-#   - Data: MM-DD (feriado nacional fixo, vale todo ano) ou AAAA-MM-DD (data
-#     unica do ano: feriado movel ou ponto facultativo da Portaria do TCU);
-#   - qualquer Data invalida interrompe tudo, com o numero da linha;
-#   - data repetida entra uma vez so (vale a primeira descricao);
-#   - arquivo sem nenhum feriado e erro: nunca se calcula com zero feriados.
-# A coluna Fonte (Portaria do TCU) e conferida so por verificar_feriados.ps1:
-# ela documenta a origem e nao entra no calculo.
+#   - texto UTF-8; so contam as linhas que tem APENAS uma data:
+#       DD-MM       feriado fixo (vale todo ano), na secao "## Feriados Fixos";
+#       DD-MM-AAAA  data de um ano, nas secoes "## Feriados Por Data",
+#                   "## Feriados moveis/diferenciados" ou "## Pontos Facultativos";
+#     titulos, linhas vazias e paragrafos sao ignorados;
+#   - linha que parece data mas esta fora do formato (2026-04-03, 3-4-2026,
+#     03/04/2026), data inexistente (31-02-2026), data fora da secao certa,
+#     secao desconhecida, data repetida, arquivo ausente, vazio ou com
+#     codificacao invalida interrompem tudo, com o numero da linha;
+#   - arquivo sem nenhuma data e erro: nunca se calcula com zero feriados.
+# Saida normalizada para o SQL (parametro @Feriados, JSON): MM-DD para fixos e
+# AAAA-MM-DD para datas com ano, com a secao como descricao.
+
+# Secoes aceitas (nome comparado sem acento e sem diferenca de maiusculas) e a
+# descricao enviada ao SQL para as datas de cada uma.
+$script:SecoesFeriados = [ordered]@{
+    'regras'                        = $null
+    'feriados fixos'                = 'Feriado fixo'
+    'feriados por data'             = 'Feriado por data'
+    'feriados moveis/diferenciados' = ('Feriado m{0}vel/diferenciado' -f [char]0x00F3)
+    'pontos facultativos'           = 'Ponto facultativo'
+}
+
+function ConvertTo-NomeSecao([string]$Texto) {
+    $d = $Texto.Normalize([System.Text.NormalizationForm]::FormD)
+    $sb = New-Object System.Text.StringBuilder
+    foreach ($c in $d.ToCharArray()) {
+        if ([System.Globalization.CharUnicodeInfo]::GetUnicodeCategory($c) -ne [System.Globalization.UnicodeCategory]::NonSpacingMark) { [void]$sb.Append($c) }
+    }
+    return ($sb.ToString() -replace '\s+', ' ').Trim().ToLowerInvariant()
+}
 
 function Read-ArquivoFeriados {
     param([Parameter(Mandatory = $true)][string]$Arquivo)
@@ -18,62 +41,76 @@ function Read-ArquivoFeriados {
         throw "Arquivo de feriados nao encontrado: $Arquivo"
     }
     $caminho = (Resolve-Path -LiteralPath $Arquivo).Path
-    $texto = [System.IO.File]::ReadAllText($caminho, (New-Object System.Text.UTF8Encoding($false)))
+    $bytes = [System.IO.File]::ReadAllBytes($caminho)
+    if ($bytes.Length -eq 0) { throw "Arquivo de feriados vazio: $caminho" }
+    try {
+        $texto = (New-Object System.Text.UTF8Encoding($false, $true)).GetString($bytes)
+    } catch {
+        throw "Arquivo de feriados com codificacao invalida (salve em UTF-8): $caminho"
+    }
     $texto = $texto.TrimStart([char]0xFEFF)
-    $linhasTexto = $texto -split "`r?`n"
-    if ($linhasTexto.Count -lt 1 -or $linhasTexto[0].Trim() -eq '') { throw "Arquivo de feriados vazio: $caminho" }
-    # Separador: virgula, ou ponto e virgula (Excel em portugues), pelo cabecalho.
-    $separador = ','
-    $porPontoVirgula = @($linhasTexto[0].Split(';') | ForEach-Object { $_.Trim().Trim('"') })
-    if ($porPontoVirgula -contains 'Data' -and $porPontoVirgula -contains 'Fonte') { $separador = ';' }
-    $cabecalho = @($linhasTexto[0].Split($separador) | ForEach-Object { $_.Trim().Trim('"') })
-    $faltando = @('Data', 'Descricao', 'Fonte' | Where-Object { $cabecalho -notcontains $_ })
-    if ($faltando.Count -gt 0) { throw ("Coluna(s) ausente(s) no arquivo de feriados: {0}" -f ($faltando -join ', ')) }
+    if ($texto.Contains([char]0)) { throw "Arquivo de feriados com codificacao invalida (salve em UTF-8, nao UTF-16): $caminho" }
+    if ($texto.Trim() -eq '') { throw "Arquivo de feriados vazio: $caminho" }
 
-    $registros = @($texto | ConvertFrom-Csv -Delimiter $separador)
-    $erros = New-Object System.Collections.Generic.List[string]
-    $saida = New-Object System.Collections.Generic.List[object]
     $inv = [System.Globalization.CultureInfo]::InvariantCulture
     $estilo = [System.Globalization.DateTimeStyles]::None
-    for ($i = 0; $i -lt $registros.Count; $i++) {
-        $r = $registros[$i]
-        $linha = $i + 2
-        $data = ("" + $r.Data).Trim()
-        $desc = ("" + $r.Descricao).Trim()
-        $fonte = ("" + $r.Fonte).Trim()
-        if ($data -eq '' -and $desc -eq '' -and $fonte -eq '') { continue }
-
+    $erros = New-Object System.Collections.Generic.List[string]
+    $saida = New-Object System.Collections.Generic.List[object]
+    $vistos = @{}
+    $secao = $null
+    $linhas = $texto -split "`r?`n"
+    for ($i = 0; $i -lt $linhas.Count; $i++) {
+        $n = $i + 1
+        $t = $linhas[$i].Trim()
+        if ($t -match '^##\s*(.+?)\s*$') {
+            $nome = ConvertTo-NomeSecao $Matches[1]
+            if ($script:SecoesFeriados.Contains($nome)) { $secao = $nome }
+            else { $erros.Add("linha ${n}: secao desconhecida '$t'") ; $secao = $null }
+            continue
+        }
         $dt = [datetime]::MinValue
         $norm = $null
-        if ($data -match '^\d{4}-\d{2}-\d{2}$' -and [datetime]::TryParseExact($data, 'yyyy-MM-dd', $inv, $estilo, [ref]$dt)) {
-            $norm = $dt.ToString('yyyy-MM-dd', $inv)
-        } elseif ($data -match '^\d{2}-\d{2}$' -and [datetime]::TryParseExact("2000-$data", 'yyyy-MM-dd', $inv, $estilo, [ref]$dt)) {
+        if ($t -match '^\d{2}-\d{2}$') {
+            if ($secao -ne 'feriados fixos') { $erros.Add("linha ${n}: feriado fixo '$t' fora da secao '## Feriados Fixos'"); continue }
+            if (-not [datetime]::TryParseExact("$t-2000", 'dd-MM-yyyy', $inv, $estilo, [ref]$dt)) { $erros.Add("linha ${n}: data invalida '$t' (use DD-MM)"); continue }
             $norm = $dt.ToString('MM-dd', $inv)
+        } elseif ($t -match '^\d{2}-\d{2}-\d{4}$') {
+            if ($null -eq $secao -or $secao -eq 'regras' -or $secao -eq 'feriados fixos') { $erros.Add("linha ${n}: data '$t' fora das secoes de datas com ano"); continue }
+            if (-not [datetime]::TryParseExact($t, 'dd-MM-yyyy', $inv, $estilo, [ref]$dt)) { $erros.Add("linha ${n}: data invalida '$t' (use DD-MM-AAAA)"); continue }
+            $norm = $dt.ToString('yyyy-MM-dd', $inv)
+        } elseif ($t -match '^\d[\d\s\-/\.]*$') {
+            $erros.Add("linha ${n}: formato invalido '$t' (use DD-MM ou DD-MM-AAAA)"); continue
         } else {
-            $erros.Add("linha ${linha}: Data invalida '$data' (use MM-DD ou AAAA-MM-DD)")
+            continue  # titulo, paragrafo ou linha vazia
         }
-        if ($null -ne $norm) {
-            $saida.Add([pscustomobject]@{ Linha = $linha; Data = $norm; Descricao = $desc; Fonte = $fonte })
-        }
+        if ($vistos.ContainsKey($norm)) { $erros.Add("linha ${n}: data '$t' repetida (ja na linha $($vistos[$norm]))"); continue }
+        $vistos[$norm] = $n
+        $saida.Add([pscustomobject]@{ Linha = $n; Data = $norm; Original = $t; Secao = $secao; Descricao = $script:SecoesFeriados[$secao] })
     }
     if ($erros.Count -gt 0) { throw ("Arquivo de feriados invalido ({0}):`n  {1}" -f $caminho, ($erros -join "`n  ")) }
-    if ($saida.Count -eq 0) { throw "Arquivo de feriados sem nenhuma linha: $caminho" }
+    if ($saida.Count -eq 0) { throw "Arquivo de feriados sem nenhuma data: $caminho" }
     return , $saida.ToArray()
 }
 
-function Get-ListaFeriados {
-    # Lista enviada ao SQL: uma entrada por data (a repetida entra uma vez).
+function Get-AvisosFeriados {
+    # Redundancias que nao mudam o calculo: data com ano que cai num feriado fixo.
     param([Parameter(Mandatory = $true)][object[]]$Feriados)
-    $vistos = @{}
-    $lista = New-Object System.Collections.Generic.List[object]
+    $fixos = @{}
+    foreach ($f in $Feriados) { if ($f.Data.Length -eq 5) { $fixos[$f.Data] = $f.Linha } }
+    $avisos = New-Object System.Collections.Generic.List[string]
     foreach ($f in $Feriados) {
-        if ($vistos.ContainsKey($f.Data)) {
-            Write-Warning ("Feriados: data {0} repetida (linhas {1} e {2}); vale a primeira." -f $f.Data, $vistos[$f.Data], $f.Linha)
-            continue
+        if ($f.Data.Length -eq 10 -and $fixos.ContainsKey($f.Data.Substring(5))) {
+            $avisos.Add(("linha {0}: {1} coincide com o feriado fixo da linha {2} (redundante, sem dupla contagem)" -f $f.Linha, $f.Original, $fixos[$f.Data.Substring(5)]))
         }
-        $vistos[$f.Data] = $f.Linha
-        $lista.Add([pscustomobject]@{ data = $f.Data; descricao = $f.Descricao })
     }
+    return , $avisos.ToArray()
+}
+
+function Get-ListaFeriados {
+    # Lista enviada ao SQL: uma entrada por data (data normalizada e descricao).
+    param([Parameter(Mandatory = $true)][object[]]$Feriados)
+    $lista = New-Object System.Collections.Generic.List[object]
+    foreach ($f in $Feriados) { $lista.Add([pscustomobject]@{ data = $f.Data; descricao = $f.Descricao }) }
     return , $lista.ToArray()
 }
 

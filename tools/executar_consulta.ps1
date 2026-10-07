@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Executa uma consulta de queries/ com os feriados do arquivo config/feriados.csv.
+    Executa uma consulta de queries/ com os feriados do arquivo docs/feriados.txt.
 
 .DESCRIPTION
     O SQL Server nao le arquivos do computador do usuario, e a conta usada nas
@@ -33,7 +33,7 @@ param(
 $ErrorActionPreference = 'Stop'
 $Ferramentas = if ($PSScriptRoot) { $PSScriptRoot } else { Split-Path -Parent $MyInvocation.MyCommand.Definition }
 . (Join-Path $Ferramentas 'feriados.ps1')
-if (-not $ArquivoFeriados) { $ArquivoFeriados = Join-Path $Ferramentas '..\config\feriados.csv' }
+if (-not $ArquivoFeriados) { $ArquivoFeriados = Join-Path $Ferramentas '..\docs\feriados.txt' }
 
 if (-not $Saida -and -not $GerarSql) { throw 'Informe -Saida (executar) ou -GerarSql (gerar arquivo para o SSMS).' }
 $sql = [System.IO.File]::ReadAllText((Resolve-Path -LiteralPath $Consulta).Path, [System.Text.Encoding]::UTF8)
