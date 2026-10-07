@@ -25096,3 +25096,15 @@ móveis 18-04-2025 e 03-04-2026 (Paixão de Cristo); pontos facultativos 2025:
 31-12; 2026: 02-01, 16-02, 17-02, 18-02, 02-04, 20-04, 04-06, 05-06, 29-06,
 28-10, 24-12, 31-12. Ao sair uma Portaria nova, registrar aqui número, data e
 código.
+
+## 80. 2026-10-07 (2ª) — calendário sem cópia no COI
+
+Correção de escopo: o COI não usa o calendário de feriados e deixou de ter
+cópia de `feriados.txt`. As cópias passam a ser quatro: `docs/feriados.txt` de
+Virtual TI, Decision e A2B e `Documentos e Relatórios/feriados.txt` (mesmo
+SHA-256 `1a97965ec7e003f1addfbc13af0f497bf45cec05b66d05c9ce98323d1365592b`;
+conteúdo e datas inalterados). `tools/verificar_feriados.ps1` (igual nos três
+repositórios) deixou de procurar a cópia do COI; README e documentação do Power
+BI citam só os três repositórios. Onde a seção anterior fala em "cinco cópias",
+valem agora quatro. Nenhum SQL, `.m`, leitor ou cálculo mudou; o `.m` continua
+em dia com a sua fonte (`verificar_feriados.ps1`: tudo certo).

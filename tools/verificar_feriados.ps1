@@ -10,10 +10,10 @@
     2. Compara docs/feriados.txt e tools/*.ps1 com os dos
        repositorios irmaos (Extracao_de_dados_Virtual, _Decision, _A2B na mesma
        pasta), se existirem: as copias devem ser identicas byte a byte.
-       docs/feriados.txt tambem e comparado com a copia do COI
-       (Extracao_de_dados_COI/docs/feriados.txt) e com a copia compartilhada
-       "Documentos e Relatorios"/feriados.txt da pasta acima, se existirem.
-       Essas copias so sao conferidas aqui: nenhuma consulta depende delas.
+       docs/feriados.txt tambem e comparado com a copia compartilhada
+       "Documentos e Relatorios"/feriados.txt da pasta acima, se existir.
+       Essa copia so e conferida aqui: nenhuma consulta depende dela.
+       O COI nao usa o calendario e nao tem copia.
     3. Confere se cada powerbi/*.m (a consulta do Power BI) corresponde ao
        SQL-fonte indicado no seu cabecalho ("// Fonte SQL: ..."), gerando de
        novo com tools/gerar_powerbi_m.ps1.
@@ -53,11 +53,10 @@ foreach ($rel in $compartilhados) {
 }
 Write-Host ("Sincronia com {0} repositorio(s) irmao(s): {1}" -f $irmaos.Count, $(if ($falhas -eq $antes) { 'OK' } else { 'FALHOU' }))
 
-# Copias so de consulta do calendario (sem uso operacional): COI e a pasta
-# compartilhada de documentos. Conferidas se existirem.
+# Copia so de consulta do calendario (sem uso operacional): a pasta
+# compartilhada de documentos. Conferida se existir.
 $hTxt = Get-Hash (Join-Path $repo 'docs\feriados.txt')
-$extras = @(Join-Path $pasta 'Extracao_de_dados_COI\docs\feriados.txt') +
-    @(Get-ChildItem $pasta -Directory -Filter 'Documentos e Relat*rios' | ForEach-Object { Join-Path $_.FullName 'feriados.txt' })
+$extras = @(Get-ChildItem $pasta -Directory -Filter 'Documentos e Relat*rios' | ForEach-Object { Join-Path $_.FullName 'feriados.txt' })
 foreach ($c in $extras) {
     if (-not (Test-Path -LiteralPath $c)) { continue }
     if ((Get-Hash $c) -ne $hTxt) { Write-Host "  DIFERENTE: $c"; $falhas++ }

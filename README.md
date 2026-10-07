@@ -21,7 +21,7 @@ Este repositório atende **somente a A2B / Protect4**. COI e Decision têm repos
 ├── docs/
 │   ├── faia-calculation.md                 como o FAIA é calculado
 │   ├── farc-calculation.md                 como o FARC é calculado
-│   └── feriados.txt                        calendário de feriados e pontos facultativos (igual em todos os repositórios)
+│   └── feriados.txt                        calendário de feriados e pontos facultativos (igual na Virtual TI, Decision e A2B)
 ├── analysis/
 │   └── planilhas de comparação
 ├── project-context/
@@ -94,14 +94,14 @@ Ela:
 ```text
 docs/faia-calculation.md             como o FAIA é calculado
 docs/farc-calculation.md             como o FARC é calculado
-docs/feriados.txt                    o calendário de feriados e pontos facultativos (igual em todos os repositórios)
+docs/feriados.txt                    o calendário de feriados e pontos facultativos (igual na Virtual TI, Decision e A2B)
 powerbi/powerbi-query.md             a consulta do painel: período, manutenção de ciclos e feriados, colunas, SharePoint
 powerbi/documentacao-powerbi-a2b.html a mesma documentação do painel, para o visual HTML Content
 ```
 
 **Feriados — `docs/feriados.txt`, `tools/` e `powerbi/*.m`.** Os feriados e
 pontos facultativos não ficam mais nos SQLs. Ficam no calendário
-`docs/feriados.txt` (cópia versionada, igual em todos os repositórios) e no
+`docs/feriados.txt` (cópia versionada, igual na Virtual TI, Decision e A2B) e no
 mesmo arquivo no SharePoint, lido pelo painel a cada atualização. É texto
 simples, em três seções: feriados fixos como `DD-MM` e datas de um ano como
 `DD-MM-AAAA` (as regras de preenchimento estão no próprio arquivo). Para incluir um feriado, basta editar o arquivo no SharePoint e

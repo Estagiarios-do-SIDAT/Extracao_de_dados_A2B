@@ -302,7 +302,7 @@ O que entra em cada lista:
 2. Acrescente a data, sozinha na linha, na seção certa (`## Feriados móveis/diferenciados` ou `## Pontos Facultativos`). Registre a Portaria (número e código de autenticidade) no histórico do projeto (`project-context/`). Ex.: `05-06-2026` em `## Pontos Facultativos` (Portaria-TCU nº 1/2026). Feriados nacionais fixos (`DD-MM`) já valem todo ano e não se repetem.
 3. Não inclua sábados e domingos — já são tratados automaticamente.
 4. Salve. A próxima atualização do painel já usa a lista nova: não é preciso mudar o SQL nem republicar o relatório.
-5. Copie o mesmo arquivo para o `docs/feriados.txt` de todos os repositórios (Virtual TI, Decision, A2B e COI) e para `Documentos e Relatórios/feriados.txt`, e rode `tools/verificar_feriados.ps1`; as consultas individuais passam a usar a lista nova.
+5. Copie o mesmo arquivo para o `docs/feriados.txt` dos repositórios Virtual TI, Decision e A2B e para `Documentos e Relatórios/feriados.txt`, e rode `tools/verificar_feriados.ps1`; as consultas individuais passam a usar a lista nova.
 6. Valide um chamado P3/P4/P5 que atravesse a nova data.
 
 Data inválida, repetida, fora do formato ou fora da seção certa, ou arquivo inacessível, **falham a atualização** com mensagem.
@@ -444,7 +444,7 @@ Sem mexer no SQL nem republicar o relatório:
 4. **Corrigir:** edite a data na linha existente.
 5. **Remover:** apague a linha da data.
 6. Salve. A próxima atualização do painel já usa a lista nova.
-7. Copie o mesmo arquivo para o `docs/feriados.txt` de todos os repositórios (inclusive o COI) e para `Documentos e Relatórios/feriados.txt`, e rode `tools/verificar_feriados.ps1`; as consultas individuais passam a usar a lista nova.
+7. Copie o mesmo arquivo para o `docs/feriados.txt` dos repositórios Virtual TI, Decision e A2B e para `Documentos e Relatórios/feriados.txt`, e rode `tools/verificar_feriados.ps1`; as consultas individuais passam a usar a lista nova.
 
 **Cuidados.**
 

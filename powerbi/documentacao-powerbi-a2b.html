@@ -78,7 +78,7 @@ Sem aspas duplas neste arquivo: pode ser colado dentro de uma medida DAX. -->
 <ol style='margin-top:4px'>
 <li>Abra o <b>feriados.txt</b> no SharePoint e adicione, corrija ou apague a data na seção certa. Não cadastre sábado nem domingo.</li>
 <li>Salve. A próxima atualização do painel já usa a lista nova: não é preciso mudar o SQL nem republicar o relatório.</li>
-<li>Mantenha igual a cópia docs/feriados.txt dos repositórios (Virtual TI, Decision, A2B e COI), usada pelas consultas de referência.</li>
+<li>Mantenha igual a cópia docs/feriados.txt dos repositórios Virtual TI, Decision e A2B, usada pelas consultas de referência.</li>
 <li>Data inválida, repetida ou fora do formato, ou arquivo inacessível <b>falham a atualização</b> com mensagem; o painel nunca é calculado sem feriados.</li>
 </ol>
 <p><b>Efeito:</b> o dia cadastrado deixa de contar como tempo <b>comercial</b> (P3 a P5). P1 e P2 não mudam. Os valores só mudam depois de atualizar, e podem mudar para chamados de ciclos já carregados. Incluir uma data <b>muda resultado</b>: na A2B, valide antes de publicar.</p>
