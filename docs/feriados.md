@@ -1,10 +1,11 @@
 # Arquivo de feriados
 
 Os feriados e pontos facultativos usados no cálculo de horas comerciais não
-ficam mais dentro dos SQLs. Eles vêm de um arquivo CSV, o mesmo para Virtual,
-Decision e A2B. No Power BI, o arquivo é lido do SharePoint a cada atualização:
-para incluir ou tirar um feriado, basta editar o arquivo e salvar. Não é
-preciso mudar o SQL nem republicar o relatório.
+ficam nos SQLs. Eles vêm de um arquivo CSV, **o mesmo para Virtual, Decision e
+A2B**: um único calendário, o do Tribunal de Contas da União (TCU). No Power BI,
+o arquivo é lido do SharePoint a cada atualização: para incluir ou tirar um
+feriado, basta editar o arquivo e salvar. Não é preciso mudar o SQL nem
+republicar o relatório.
 
 Este documento é **idêntico** nos três repositórios
 (`Extracao_de_dados_Virtual`, `Extracao_de_dados_Decision`,
@@ -12,112 +13,153 @@ Este documento é **idêntico** nos três repositórios
 
 ---
 
-## 1. Onde fica
+## 1. Regra
+
+- **Fonte funcional:** a Portaria do TCU que divulga os feriados nacionais e
+  define os pontos facultativos de cada ano, com todas as portarias que a
+  alteram. Não se usa calendário civil genérico, de outro órgão, nem feriado
+  estadual ou municipal.
+- **Um calendário só.** Virtual, Decision e A2B usam exatamente a mesma lista.
+  Não existe regra diferente por projeto.
+- **Feriados nacionais fixos** (mesmo dia todo ano) são cadastrados **uma vez**,
+  como `MM-DD`, e valem automaticamente em todos os anos.
+- **Datas que mudam de ano para ano** (Carnaval, Quarta-Feira de Cinzas, Paixão
+  de Cristo, Corpus Christi, emendas, véspera de Natal e de Ano Novo, Dia do
+  Servidor, datas extraordinárias) são cadastradas **por ano**, como
+  `AAAA-MM-DD`, conforme a Portaria daquele ano. Não se preenchem por
+  suposição.
+- O dia cadastrado inteiro deixa de ter horário comercial (as Portarias não
+  preveem meio expediente). Sábado e domingo nunca têm horário comercial. O
+  tempo corrido (P1/P2) não desconta feriado.
+- O art. 2º das Portarias (feriados locais das Secretarias do TCU nos Estados)
+  não entra: ele vale para as unidades estaduais, não para o calendário
+  institucional usado nos contratos.
+
+## 2. Portarias usadas (cadastro atual)
+
+Textos obtidos do Boletim do TCU (BTCU), pela consulta de autenticidade do TCU
+(`www.tcu.gov.br/autenticidade`; PDF em
+`https://btcu.apps.tcu.gov.br/api/obterDocumentoPdf/<código>`).
+
+| Ano | Portaria | Código de autenticidade | O que define |
+|---|---|---|---|
+| 2025 | Portaria-TCU nº 10, de 13/01/2025 | 77411949 | calendário de 2025 |
+| 2025 | Portaria-TCU nº 67, de 28/04/2025 | 77981373 | inclui 02/05/2025 |
+| 2025 | Portaria-TCU nº 157, de 30/10/2025 | 79190602 | inclui 21/11/2025 |
+| 2025 | Portaria-TCU nº 176, de 19/12/2025 | 79506777 | inclui 26/12/2025 |
+| 2026 | Portaria-TCU nº 179, de 19/12/2025 | 79506777 | define 02/01/2026 |
+| 2026 | Portaria-TCU nº 1, de 08/01/2026 | 79561193 | calendário de 2026 |
+| 2026 | Portaria-TCU nº 93, de 25/06/2026 | 80587034 | inclui 29/06/2026 (jogo da Seleção na Copa) |
+
+Datas do cadastro atual (35 linhas):
+
+- **fixas, todo ano (9):** 01-01 Confraternização Universal, 04-21 Tiradentes,
+  05-01 Dia Mundial do Trabalho, 09-07 Independência do Brasil, 10-12 Nossa
+  Senhora Aparecida, 11-02 Finados, 11-15 Proclamação da República, 11-20 Dia
+  Nacional de Zumbi e da Consciência Negra, 12-25 Natal;
+- **2025 (13):** 03/03, 04/03 (Carnaval), 05/03 (Cinzas), 17/04 (Quinta-Feira
+  Santa), 18/04 (Paixão de Cristo), 02/05, 19/06 (Corpus Christi), 20/06,
+  27/10 (Dia do Servidor), 21/11, 24/12, 26/12, 31/12;
+- **2026 (13):** 02/01, 16/02, 17/02 (Carnaval), 18/02 (Cinzas), 02/04, 03/04
+  (Paixão de Cristo), 20/04, 04/06 (Corpus Christi), 05/06, 29/06 (Copa),
+  28/10 (Dia do Servidor), 24/12, 31/12.
+
+**Pendências.** Não foi localizada alteração da Portaria nº 1/2026 posterior à
+nº 93/2026 (até 07/10/2026); confirmar na base Normas do TCU antes de cada
+virada de ano. Os anos anteriores a 2025 só têm os feriados fixos: as datas
+móveis de 2023 e 2024 não foram cadastradas (a A2B tem chamados abertos desde
+2023; ver o histórico do projeto).
+
+## 3. Onde fica o arquivo
 
 | Uso | Arquivo |
 |---|---|
-| Power BI (os três relatórios) | **um** `feriados.csv` no SharePoint, no endereço configurado em `UrlArquivoFeriados` (seção 5) |
+| Power BI (os três relatórios) | **um** `feriados.csv` no SharePoint, no endereço configurado em `UrlArquivoFeriados` (seção 7) |
 | Consultas de `queries/` | `config/feriados.csv` do repositório |
 
-O arquivo do SharePoint é a fonte usada pelos relatórios. O `config/feriados.csv`
-é a cópia versionada: guarda o histórico no Git e alimenta as consultas
-executadas fora do Power BI. As cópias dos três repositórios são **idênticas**;
-`tools/verificar_feriados.ps1` confere isso (seção 7). Ao mudar um feriado,
-mude o SharePoint e as três cópias com o mesmo conteúdo.
+O arquivo do SharePoint é a fonte operacional dos relatórios. O
+`config/feriados.csv` é a cópia versionada: guarda o histórico no Git e
+alimenta as consultas executadas fora do Power BI. As cópias dos três
+repositórios são **idênticas byte a byte**; `tools/verificar_feriados.ps1`
+confere isso (seção 9).
 
-Por que não um arquivo só para os três repositórios: os repositórios são
-independentes e não há um diretório comum versionado. Um arquivo fora deles
-não teria histórico, e um caminho de um repositório dentro de outro quebraria
-quando um deles fosse clonado sozinho. Por isso há três cópias iguais,
-conferidas por script.
+Por que três cópias e não um arquivo só nos repositórios: eles são
+independentes e não há um diretório comum versionado. Um caminho de um
+repositório dentro de outro quebraria quando um deles fosse clonado sozinho.
 
-## 2. Formato
+## 4. Formato
 
 CSV em UTF-8, com cabeçalho, separado por vírgula (ou por `;`, como o Excel em
 português costuma salvar; o separador é reconhecido pelo cabeçalho):
 
 ```csv
-Data,Descricao,Escopo
-12-25,Natal,TODOS
-2026-04-03,Paixão de Cristo,TODOS
-2026-06-29,Ponto facultativo - jogo da Seleção Brasileira na Copa do Mundo FIFA 2026,DECISION;A2B
+Data,Descricao,Fonte
+12-25,Natal,Feriado nacional fixo; Portarias-TCU nº 10/2025 e nº 1/2026
+2026-06-29,Ponto facultativo - jogo da Seleção Brasileira na Copa do Mundo FIFA 2026,"Portaria-TCU nº 93/2026 (BTCU, autenticidade 80587034)"
 ```
 
-| Coluna | Obrigatória | Regra |
-|---|---|---|
-| `Data` | sim | `AAAA-MM-DD` = data única (feriado móvel, ponto facultativo). `MM-DD` = feriado fixo, vale **todo ano** (como os nacionais) |
-| `Descricao` | a coluna sim; o texto pode ficar vazio | nome do feriado. Não muda o cálculo de horas; a Decision mostra o texto no diagnóstico de rotinas abertas em feriado |
-| `Escopo` | sim | `TODOS`, ou um ou mais projetos separados por `;`: `VIRTUAL`, `DECISION`, `A2B` |
+| Coluna | Regra |
+|---|---|
+| `Data` | `MM-DD` = feriado nacional fixo, todo ano; `AAAA-MM-DD` = data de um ano |
+| `Descricao` | nome do feriado ou ponto facultativo. Não muda o cálculo de horas; a Decision mostra o texto no diagnóstico de rotinas abertas em feriado |
+| `Fonte` | a Portaria do TCU (número, ano e código de autenticidade). Não entra no cálculo; `tools/verificar_feriados.ps1` recusa linha sem fonte |
 
-- Uma linha por feriado. Linhas totalmente vazias são ignoradas.
-- Descrição com vírgula vai entre aspas: `"Natal, feriado nacional"`.
-- O dia inteiro deixa de ter horário comercial. Não há meio expediente.
-- Sábado e domingo nunca têm horário comercial; um feriado nesses dias não muda
-  horas (na Decision, só o texto do diagnóstico de rotina).
-- O tempo corrido (P1/P2, `Corrida`) não desconta feriado.
+- Uma linha por data. Linhas totalmente vazias são ignoradas.
+- Texto com vírgula vai entre aspas: `"Portaria-TCU nº 10/2025 (BTCU, ...)"`.
+- Não existe coluna `Escopo`: até 2026-10-07 ela separava listas por projeto;
+  foi removida com o calendário único.
 
-## 3. Por que existe a coluna Escopo
+## 5. Quando sair uma nova Portaria do TCU
 
-As três listas que estavam nos SQLs **não eram iguais**. Para que a mudança de
-fonte não mudasse nenhum resultado, cada linha diz a que projeto vale. Hoje:
+1. Abrir o `feriados.csv` (o do SharePoint e o `config/feriados.csv`).
+2. Adicionar **apenas** as datas do ano previstas na Portaria, como
+   `AAAA-MM-DD`: feriados móveis e pontos facultativos.
+3. **Não** repetir os feriados nacionais fixos: as linhas `MM-DD` já valem
+   para o ano novo.
+4. Registrar a Portaria na coluna `Fonte` (número, data e código de
+   autenticidade do BTCU).
+5. Se a Portaria for **alterada** durante o ano, incluir ou retirar as datas
+   correspondentes, citando a portaria de alteração.
+6. Rodar `.\tools\verificar_feriados.ps1` num dos repositórios e copiar o mesmo
+   arquivo para o `config/feriados.csv` dos outros dois.
+7. Salvar o arquivo no SharePoint. A próxima atualização dos três relatórios já
+   usa a lista nova.
 
-| Data | Virtual | Decision | A2B | Observação |
-|---|---|---|---|---|
-| feriados nacionais fixos (01-01, 04-21, 05-01, 09-07, 10-12, 11-02, 11-15, 11-20, 12-25) | sim | sim | sim | a Virtual cadastrava só 2025 e 2026; Decision e A2B, todo ano |
-| 2025-03-03, 03-04, 04-17, 04-18, 05-02, 06-19 | sim | sim | **não** | a A2B cadastrava só as datas a partir de 27/10/2025 |
-| 2025-03-05 (Quarta-Feira de Cinzas) | **não** (contava como dia útil) | sim | não | |
-| 2025-06-20 | não | sim | não | só a Decision cadastrava |
-| 2026-06-29 (Copa do Mundo) | **não** | sim | sim | Portaria-TCU nº 93/2026; a Virtual não tinha |
-| demais datas de 2025-10-27 em diante | sim | sim | sim | |
+Salve como CSV em UTF-8 (no Excel: *CSV UTF-8*). Vírgula ou `;` servem. Salvo
+em outra codificação, só os textos com acento saem trocados; as datas continuam
+válidas.
 
-Essas diferenças foram **mantidas**: harmonizar é uma decisão de regra, e muda
-resultado. Para harmonizar, basta mudar o `Escopo` da linha (por exemplo,
-`DECISION;A2B` → `TODOS`).
+## 6. Validação e falhas
 
-Mudanças de forma, sem efeito nos resultados publicados (conferido):
+Qualquer um destes problemas **interrompe** a atualização (Power BI) ou a
+execução (scripts), com mensagem:
 
-- os 9 feriados nacionais viraram `MM-DD` com `TODOS`. Para a Virtual isso
-  acrescenta esses feriados nos anos fora de 2025–2026, que antes não tinham
-  nenhum feriado; as populações publicadas não chegam a esses anos;
-- 2025-07-20 (domingo, só na Virtual, sem descrição) saiu: domingo não tem
-  horário comercial;
-- 2026-04-05 (Páscoa, domingo) passou a valer também para a Virtual: domingo;
-- na A2B, a consulta individual do FAIA passou a usar 24/12 e 31/12/2025, como
-  o painel e a consulta do FARC já faziam. Era uma divergência registrada da
-  consulta individual; com ela, 4 rotinas abertas nesses dias passam de
-  0:09–0:57 para 0:00:00 de Tempo Primeiro Atendimento, o mesmo valor do
-  painel publicado (nenhuma meta muda).
+| Situação | Mensagem (resumo) |
+|---|---|
+| `UrlArquivoFeriados` ainda com o placeholder | *Preencha UrlArquivoFeriados...* |
+| arquivo inexistente ou SharePoint inacessível | erro do `Web.Contents` (ex.: 404) / *Arquivo de feriados nao encontrado* |
+| falta coluna `Data`, `Descricao` ou `Fonte` (ou separador diferente de `,` e `;`) | *Coluna(s) ausente(s)...* |
+| `Data` fora de `MM-DD` / `AAAA-MM-DD`, ou inexistente (`2026-02-30`, `26/12/2026`) | *Data invalida na linha N...* |
+| arquivo sem nenhuma data | *Nenhum feriado no arquivo de feriados* |
+| consulta executada sem `@Feriados` | *Must declare the scalar variable "@Feriados"* |
+| `@Feriados` vazio, JSON inválido ou truncado | *Feriados: @Feriados vazio ou invalido...* |
 
-## 4. Como editar
+O relatório **nunca** é calculado com zero feriados. Data repetida entra uma
+vez (vale a primeira descrição); o script avisa a repetição.
 
-1. Abrir o `feriados.csv` (no SharePoint, para o Power BI; em `config/`, para
-   as consultas e o histórico).
-2. Incluir uma linha por data, por exemplo
-   `2027-02-08,Carnaval - ponto facultativo,TODOS`.
-3. Salvar como CSV em UTF-8 (no Excel: *CSV UTF-8*). Vírgula ou `;` servem.
-   Salvo em outra codificação, só as descrições com acento saem trocadas; datas
-   e escopos continuam válidos.
-4. Rodar `tools/verificar_feriados.ps1` no repositório (seção 7).
-5. Copiar o mesmo conteúdo para o `config/feriados.csv` dos outros dois
-   repositórios e para o SharePoint.
-
-A cada ano, cadastrar as datas únicas do ano novo (feriados móveis e pontos
-facultativos da portaria do TCU). Os fixos (`MM-DD`) já valem todo ano.
-
-## 5. Power BI: leitura do SharePoint
+## 7. Power BI: leitura do SharePoint
 
 O cálculo de horas comerciais é feito no SQL Server, que **não lê** o
-SharePoint. Por isso cada relatório usa uma consulta **Power Query M**
-(`powerbi/*.m`) que:
+SharePoint. Cada relatório usa uma consulta **Power Query M** (`powerbi/*.m`)
+que:
 
-1. lê o `feriados.csv` do SharePoint (`Web.Contents`), a cada atualização;
+1. lê o `feriados.csv` do SharePoint (`Web.Contents`, URL direta), a cada
+   atualização;
 2. valida todas as linhas (seção 6);
-3. filtra as linhas do projeto (`Escopo` = `TODOS` ou o projeto);
-4. envia a lista ao SQL como **parâmetro** `@Feriados` (JSON com data e
+3. envia a lista ao SQL como **parâmetro** `@Feriados` (JSON com data e
    descrição). Nenhum texto do arquivo é concatenado no SQL; o SQL valida de
    novo cada data;
-5. executa a consulta (`Value.NativeQuery`) e devolve o mesmo resultado de
-   antes.
+4. executa a consulta (`Value.NativeQuery`) e devolve o mesmo resultado do SQL.
 
 O `.m` é gerado a partir do `.sql` por `tools/gerar_powerbi_m.ps1` e contém o
 SQL inteiro como texto. Mudança de regra: alterar o `.sql`, gerar o `.m` de
@@ -134,55 +176,57 @@ Trocar pelo link **direto** do arquivo, no formato
 No SharePoint: abrir a pasta, `...` do arquivo > *Detalhes* > *Caminho* (copiar),
 ou *Abrir no aplicativo* > *Arquivo* > *Informações* > *Copiar caminho*, e tirar
 o final `?web=1`, se houver. O link de compartilhamento (`/:x:/r/...`) não
-serve. Enquanto o placeholder estiver no arquivo, a atualização falha com a
-mensagem *Preencha UrlArquivoFeriados...*. Use o **mesmo** link nos três
-relatórios.
+serve. Use o **mesmo** link nos três relatórios. Servidor e banco ficam no fim
+do `.m` (`Sql.Database("bdados-14r", "mdb")`): conferir se são os mesmos da
+fonte atual do PBIX.
 
-Servidor e banco ficam na última etapa do `.m`
-(`Sql.Database("bdados-14r", "mdb")`), os mesmos das consultas atuais.
+**Formula.Firewall.** A primeira versão do `.m` gerado (commits de
+2026-10-07, antes desta correção) produzia o erro *Formula.Firewall* ("faz
+referência a outras consultas ou etapas, portanto, pode não ter acesso direto a
+uma fonte de dados"), mesmo com as duas fontes como Organizacional: cada etapa
+era um passo separado, e o passo final acessava o SQL usando dados de passos
+que acessavam o SharePoint. O `.m` foi reestruturado para um **único passo**
+(`Fonte`), em que as duas fontes ficam na mesma partição do firewall e ele só
+confere se os níveis de privacidade são compatíveis. Não separe os passos.
 
 **Configuração única no Power BI.**
 
-- Credenciais: SQL Server como hoje (Windows/gateway). Para o SharePoint,
-  *Conta organizacional* (OAuth2), configurada na raiz do site; no Power BI
-  Desktop, em *Configurações da fonte de dados*; no serviço, em *Configurações
-  do modelo semântico > Credenciais da fonte de dados*.
-- Níveis de privacidade: as duas fontes como **Organizacional**. A consulta
-  combina dados do SharePoint com o SQL Server; com uma das fontes como
-  *Privado* (ou sem nível definido), o Power Query bloqueia a combinação. Tudo
-  está numa consulta só, o que evita o erro *Formula.Firewall* de referência
-  entre consultas.
-- Gateway: o SQL Server é local e o SharePoint é nuvem. No gateway, habilitar
-  *Permitir que as fontes de dados de nuvem do usuário sejam atualizadas por
-  este cluster de gateway*, ou cadastrar a fonte Web do SharePoint no gateway.
-- Consulta nativa: no Desktop, aprovar a execução da consulta nativa na
+- **Privacidade:** SharePoint = **Organizacional**; SQL Server =
+  **Organizacional**. Com uma das fontes Privada ou Pública, ou sem nível
+  definido, o Power Query recusa a combinação. Não é preciso (nem recomendado)
+  ignorar os níveis de privacidade.
+- **Credenciais:** SQL Server como hoje (Windows/gateway); SharePoint com
+  *Conta organizacional* (OAuth2). No Desktop, em *Configurações da fonte de
+  dados*; no serviço, em *Configurações do modelo semântico > Credenciais da
+  fonte de dados* (se o teste de conexão falhar na raiz do site, marcar
+  *Ignorar conexão de teste*).
+- **Gateway:** o SQL Server é local e precisa de gateway. O SharePoint Online é
+  fonte de nuvem. Como a mesma consulta combina as duas, ela é avaliada no
+  gateway: habilitar *Permitir que as fontes de dados de nuvem do usuário sejam
+  atualizadas por este cluster de gateway* (ou cadastrar a fonte Web do
+  SharePoint no gateway), e a máquina do gateway precisa acessar o SharePoint
+  Online.
+- **Consulta nativa:** no Desktop, aprovar a execução da consulta nativa na
   primeira vez (e a cada mudança do SQL).
 
-**O que não foi testado aqui.** O SQL foi executado com o parâmetro
-`@Feriados` exatamente como o Power Query o envia (`sp_executesql`). O código M
-não foi executado neste ambiente (não há Power BI Desktop instalado): validar
-no primeiro refresh, conforme o checklist da seção 8.
+**O que foi validado (2026-10-07)**, com o motor de Power Query do Power BI
+Desktop instalado nesta máquina, fora de qualquer PBIX, com o arquivo servido
+por HTTP local e só o placeholder trocado:
 
-## 6. Validação e falhas
+- os três `.m` executam com SharePoint/Web e SQL como Organizacional, firewall
+  de privacidade ativo, sem ignorar níveis de privacidade;
+- resultado do M = resultado do SQL nos três projetos: mesmas linhas, colunas,
+  ordem e valores;
+- Privado ou Público em qualquer das fontes, ou nível não definido: a
+  combinação é recusada (o firewall continua ativo);
+- todas as falhas da seção 6; `;` com BOM; deduplicação; lista de ~26 mil
+  caracteres sem truncamento.
 
-Qualquer um destes problemas **interrompe** a atualização (Power BI) ou a
-execução (scripts), com mensagem:
+**O que ainda depende do ambiente real:** acesso ao SharePoint Online com
+OAuth2, o PBIX, o gateway do workspace e o refresh agendado no Power BI
+Service. Ver o checklist da seção 10.
 
-| Situação | Mensagem (resumo) |
-|---|---|
-| `UrlArquivoFeriados` ainda com o placeholder | *Preencha UrlArquivoFeriados...* |
-| arquivo inexistente ou SharePoint inacessível | erro de acesso do Power BI / *Arquivo de feriados nao encontrado* |
-| falta coluna `Data`, `Descricao` ou `Escopo` (ou separador diferente de `,` e `;`) | *Coluna(s) ausente(s)...* |
-| data fora de `AAAA-MM-DD` / `MM-DD`, ou inexistente (`2026-02-30`) | *Data invalida na linha N...* |
-| escopo desconhecido, vazio, ou `TODOS` junto com projeto | *Escopo invalido na linha N...* |
-| nenhuma linha para o projeto | *Nenhum feriado para o projeto...* |
-| consulta executada sem `@Feriados` | *Must declare the scalar variable "@Feriados"* |
-| `@Feriados` vazio, JSON inválido ou truncado | *Feriados: @Feriados vazio ou invalido...* |
-
-O relatório **nunca** é calculado com zero feriados. Data repetida no mesmo
-projeto entra uma vez (vale a primeira descrição); o script avisa a repetição.
-
-## 7. Consultas de queries/ (fora do Power BI)
+## 8. Consultas de queries/ (fora do Power BI)
 
 O SQL Server não abre arquivos do computador do usuário, e a conta das
 consultas não tem permissão de `BULK INSERT` / `OPENROWSET` (conferido em
@@ -199,7 +243,6 @@ parâmetro `@Feriados`, montado por um script PowerShell a partir de
 .\tools\executar_consulta.ps1 -Consulta .\queries\<consulta>.sql -GerarSql C:\temp\consulta_ssms.sql
 ```
 
-- O projeto vem da linha `-- FERIADOS-ESCOPO: <PROJETO>` da própria consulta.
 - `-Saida` grava `<prefixo>.rs1.csv`, `<prefixo>.rs2.csv`... em UTF-8, separado
   por `;` (abre direto no Excel em português).
 - A cópia de `-GerarSql` não deve ser versionada: gere de novo sempre que o
@@ -207,18 +250,19 @@ parâmetro `@Feriados`, montado por um script PowerShell a partir de
 - Abrir o `.sql` de `queries/` direto no SSMS, sem o script, falha com
   *Must declare the scalar variable "@Feriados"*.
 
-Conferência do arquivo e da sincronia:
+## 9. Conferência do arquivo e da sincronia
 
 ```powershell
 .\tools\verificar_feriados.ps1
 ```
 
-Valida o arquivo, mostra quantos feriados entram em cada projeto, compara
-`config/feriados.csv`, `docs/feriados.md` e `tools/*.ps1` com os dos
-repositórios irmãos (mesma pasta) e confere se cada `powerbi/*.m` corresponde ao
-seu `.sql`. Termina com erro se algo não bater.
+Valida o arquivo, exige `Fonte` preenchida, mostra quantos feriados fixos e
+quantas datas por ano ele tem, compara `config/feriados.csv`,
+`docs/feriados.md` e `tools/*.ps1` com os dos repositórios irmãos (mesma pasta)
+e confere se cada `powerbi/*.m` corresponde ao seu `.sql`. Termina com erro se
+algo não bater.
 
-## 8. Primeiro refresh (checklist)
+## 10. Primeiro refresh (checklist)
 
 1. Copiar `config/feriados.csv` para a biblioteca do SharePoint escolhida.
 2. Em cada relatório, criar a consulta a partir do `.m` do repositório
@@ -227,9 +271,20 @@ seu `.sql`. Termina com erro se algo não bater.
    arquivo.
 4. Credenciais: SharePoint com conta organizacional; SQL como hoje. Privacidade
    das duas fontes: Organizacional. Gateway: permitir fontes de nuvem.
-5. Atualizar no Desktop e comparar com a consulta anterior: mesmo número de
-   linhas e mesmos totais de FAIA e FARC.
+5. Atualizar no Desktop e conferir o número de linhas e os totais de FAIA e
+   FARC com os valores esperados do calendário TCU (ver o histórico do
+   projeto).
 6. Publicar e acompanhar o primeiro refresh agendado no serviço.
 7. Teste de manutenção: incluir no SharePoint uma data de teste num dia útil
    recente, atualizar, ver as horas comerciais mudarem, apagar a data e
    atualizar de novo (volta ao valor anterior).
+
+## 11. Histórico
+
+- **2026-10-06/07:** listas tiradas dos SQLs; arquivo com coluna `Escopo`, que
+  preservava as diferenças entre as listas antigas de cada projeto.
+- **2026-10-07 (correção):** calendário único do TCU para os três projetos,
+  conferido contra as Portarias da seção 2; coluna `Escopo` removida; coluna
+  `Fonte` incluída; `.m` reestruturado para um único passo (Formula.Firewall).
+  O impacto em cada projeto está no histórico do repositório
+  (`project-context/`).

@@ -69,22 +69,22 @@ Sem aspas duplas neste arquivo: pode ser colado dentro de uma medida DAX. -->
 <p>É o <b>único</b> número que muda; a regra do ciclo, do dia 24 até o final do dia 23 do mês seguinte, não depende dele.</p>
 
 <h3 style='font-size:14px;margin:10px 0 4px 0'>Atualizar feriados e pontos facultativos</h3>
-<p>Ficam no <b>arquivo de feriados</b> (feriados.csv), no SharePoint, e <b>não no SQL</b>. O painel lê o arquivo a cada atualização; a lista vale para FAIA e FARC. Colunas: <b>Data</b>, <b>Descricao</b>, <b>Escopo</b> (TODOS ou A2B valem para a A2B):</p>
+<p>Ficam no <b>arquivo de feriados</b> (feriados.csv), no SharePoint, e <b>não no SQL</b>. O painel lê o arquivo a cada atualização; a lista vale para FAIA e FARC. É o calendário do TCU, o mesmo da Virtual e da Decision. Colunas: <b>Data</b>, <b>Descricao</b>, <b>Fonte</b> (a Portaria do TCU):</p>
 <ul style='margin-top:4px'>
-<li><b>MM-DD</b> — mesmo dia todo ano. Ex.: 12-25,Natal,TODOS</li>
-<li><b>AAAA-MM-DD</b> — feriados móveis e pontos facultativos do TCU. Ex.: 2026-06-05,Ponto facultativo - emenda após Corpus Christi,TODOS</li>
+<li><b>MM-DD</b> — feriados nacionais fixos; cadastrados uma vez, valem todo ano. Ex.: 12-25,Natal,Feriado nacional fixo</li>
+<li><b>AAAA-MM-DD</b> — feriados móveis e pontos facultativos do TCU, por ano, conforme a Portaria. Ex.: 2026-06-05,Ponto facultativo - emenda após Corpus Christi,Portaria-TCU nº 1/2026</li>
 </ul>
 <p><b>Fonte obrigatória:</b> somente a portaria anual do TCU que define feriados e pontos facultativos do ano, publicada no Boletim do TCU, <b>e todas as portarias que a alterarem</b>. Consulte em pesquisa.apps.tcu.gov.br, base Normas. Não use calendário civil genérico nem de outro órgão.</p>
 <ol style='margin-top:4px'>
 <li>Abra o <b>feriados.csv</b> no SharePoint e adicione, corrija ou apague a linha. Não cadastre sábado nem domingo.</li>
 <li>Salve. A próxima atualização do painel já usa a lista nova: não é preciso mudar o SQL nem republicar o relatório.</li>
 <li>Mantenha igual a cópia config/feriados.csv dos repositórios da Virtual, da Decision e da A2B, usada pelas consultas de referência.</li>
-<li>Data inválida, escopo desconhecido ou arquivo inacessível <b>falham a atualização</b> com mensagem; o painel nunca é calculado sem feriados.</li>
+<li>Data inválida, coluna ausente ou arquivo inacessível <b>falham a atualização</b> com mensagem; o painel nunca é calculado sem feriados.</li>
 </ol>
 <p><b>Efeito:</b> o dia cadastrado deixa de contar como tempo <b>comercial</b> (P3 a P5). P1 e P2 não mudam. Os valores só mudam depois de atualizar, e podem mudar para chamados de ciclos já carregados. Incluir uma data <b>muda resultado</b>: na A2B, valide antes de publicar.</p>
 
 <div style='background:#fff8e6;border-left:4px solid #bf8700;padding:10px 12px;margin:10px 0'>
-<b>Situação do cadastro:</b> a janela de 12 ciclos está coberta — pontos facultativos de 2025 a partir de outubro (27/10, 21/11, 24/12, 26/12, 31/12) e 2026 completo, incluindo 29/06/2026, acrescentado pela Portaria-TCU nº 93/2026. <b>2027 ainda não está cadastrado.</b> Revise sempre que a janela alcançar um ano novo e sempre que o TCU alterar o calendário do ano corrente.
+<b>Situação do cadastro:</b> calendário do TCU de 2025 e 2026 completos (Portarias-TCU nº 10, 67, 157 e 176/2025; nº 1 e 93/2026), incluindo 29/06/2026, acrescentado pela Portaria-TCU nº 93/2026. <b>2027 ainda não está cadastrado.</b> Revise sempre que a janela alcançar um ano novo e sempre que o TCU alterar o calendário do ano corrente.
 </div>
 
 <h2 style='font-size:16px;color:#0b3d6b;border-bottom:1px solid #d0d7de;padding-bottom:4px'>8. Alertas de manutenção</h2>

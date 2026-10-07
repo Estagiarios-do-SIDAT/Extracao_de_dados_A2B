@@ -281,7 +281,7 @@ O desconto de feriados e pontos facultativos é aplicado nos três caminhos que 
 * `#TempoAtendimentoRotina`, usado nas rotinas;
 * `#TempoAtendimentoStatusLead`, usado no segundo cálculo dos chamados normais.
 
-Os feriados fixos ficam em `#FeriadosFixos`, no formato `MM-DD`. Feriados móveis e pontos facultativos ficam em `#FeriadosPorData`, com a data completa. As duas tabelas são montadas a partir do arquivo de feriados (linhas de escopo `TODOS` ou `A2B`), recebido no parâmetro `@Feriados`; as datas não ficam no SQL ([feriados.md](feriados.md)). A lista da A2B tem os pontos facultativos de 2025 a partir de 27/10 (inclusive 24 e 31/12/2025, do ciclo Dezembro/Janeiro) e as datas de 2026.
+Os feriados fixos ficam em `#FeriadosFixos`, no formato `MM-DD`. Feriados móveis e pontos facultativos ficam em `#FeriadosPorData`, com a data completa. As duas tabelas são montadas a partir do arquivo de feriados (o calendário do TCU, o mesmo da Virtual e da Decision), recebido no parâmetro `@Feriados`; as datas não ficam no SQL ([feriados.md](feriados.md)). A lista tem o calendário de 2025 completo (Portarias-TCU nº 10, 67, 157 e 176/2025) e o de 2026 (nº 1 e 93/2026).
 
 O calendário afeta somente a contagem **comercial** de P3, P4 e P5. P1 e P2 continuam em tempo corrido e não descontam feriado.
 

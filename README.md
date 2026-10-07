@@ -102,7 +102,7 @@ atualização. Para incluir um feriado, basta editar o arquivo no SharePoint e
 salvar: não se muda o SQL nem se republica o relatório.
 
 ```text
-config/feriados.csv                  feriados e pontos facultativos (Data, Descricao, Escopo)
+config/feriados.csv                  feriados e pontos facultativos do TCU (Data, Descricao, Fonte)
 powerbi/consulta_faia_farc_power_bi.m consulta do painel (Power Query M): feriados do SharePoint + SQL
 tools/executar_consulta.ps1          executa queries/ com os feriados do arquivo
 tools/gerar_powerbi_m.ps1            gera powerbi/*.m a partir do .sql
@@ -157,7 +157,7 @@ DECLARE @MostrarDiagnostico bit = 0;
 **Consulta do painel** (`powerbi/`):
 
 - `@PBI_QuantidadeCiclos` — quantidade de ciclos completos, padrão `12`. Cada ciclo começa às 00:00:00 do dia 24 e termina ao final do dia 23 do mês seguinte. É o único parâmetro de período, e vale apenas para esta consulta: as individuais usam `@InicioBrasil`/`@FimBrasil`.
-- Feriados: vêm do **arquivo de feriados** (linhas de escopo `TODOS` ou `A2B`), pelo parâmetro `@Feriados`, nas três consultas (painel e individuais); o bloco `[S.2]` só valida e monta `#PBI_FeriadosFixos` e `#PBI_FeriadosPorData`. Datas só com fonte oficial do TCU. Passo a passo em [`docs/feriados.md`](docs/feriados.md) e [`docs/powerbi-query.md`](docs/powerbi-query.md#13-manutenção-no-power-query).
+- Feriados: vêm do **arquivo de feriados** (o calendário do TCU, o mesmo da Virtual e da Decision), pelo parâmetro `@Feriados`, nas três consultas (painel e individuais); o bloco `[S.2]` só valida e monta `#PBI_FeriadosFixos` e `#PBI_FeriadosPorData`. Datas só com fonte oficial do TCU. Passo a passo em [`docs/feriados.md`](docs/feriados.md) e [`docs/powerbi-query.md`](docs/powerbi-query.md#13-manutenção-no-power-query).
 
 ## Fluxo de validação
 

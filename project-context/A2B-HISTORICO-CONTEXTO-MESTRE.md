@@ -24961,3 +24961,40 @@ painel publicado; nenhuma meta mudou. Teste de manutenção: com 2026-09-15
 incluído só no arquivo, 9 chamados mudam no painel (ex.: 1728602, Tempo de
 Atendimento 0:02:14 → 0:01:58); retirada a data, 0 diferenças; o SQL não mudou
 (mesmo SHA256).
+
+## 77. 2026-10-07 — calendário único do TCU e correção do M (Formula.Firewall)
+
+Decisão do usuário: Virtual, Decision e A2B usam **o mesmo calendário**, o da
+Portaria do TCU de cada ano, sem diferença por projeto. Feriados nacionais
+fixos recorrentes (`MM-DD`); datas móveis e pontos facultativos por ano
+(`AAAA-MM-DD`). Fontes conferidas no BTCU pela consulta de autenticidade:
+Portarias-TCU nº 10, 67, 157 e 176/2025, nº 179/2025 e nº 1 e 93/2026 (lista
+e códigos em `docs/feriados.md`). Arquivo: `Data,Descricao,Fonte`, 35 linhas;
+coluna `Escopo` removida; tools, SQL (só comentários) e M sem lógica por
+projeto.
+
+Diferenças para a A2B, contra o estado anterior (`f24c459`): passam a valer as
+datas de 2025 anteriores a 27/10 que estão na Portaria-TCU nº 10/2025 (e nº
+67/2025): 03/03, 04/03 (Carnaval), 05/03 (Cinzas), 17/04, 18/04 (Paixão),
+02/05, 19/06 (Corpus Christi) e 20/06; sai 05/04/2026 (Páscoa, domingo, fora da
+Portaria, sem efeito). Medido no mesmo instante:
+
+| Consulta | Janela | Chamados | Alterados | Efeito |
+|---|---|---|---|---|
+| painel | 12 ciclos | 2.479 | 3 | `Tempo de Atendimento` −0:11:28 no total (maior: 1572004, 29:59:10 → 29:49:42); excesso, meta, nHR e FARC iguais |
+| FAIA individual | 24/03 a 23/04/2026 | 234 | 0 | — |
+| FARC individual | 24/03 a 23/04/2026 | 234 | 1 | `Tempo de Atendimento` −0:00:45 (1547967) |
+| FAIA individual | 24/01/2025 a 06/10/2026 | 4.169 | 21 | `Tempo Primeiro Atendimento` −9:26:07 (maior: 1588182, 3:20:25 → 0:00:00); meta e FAIA iguais |
+| FARC individual | 24/01/2025 a 06/10/2026 | 4.169 | 59 | `Tempo de Atendimento` −124:46:54 (maior: 1586477, 190:14:59 → 154:14:42); 1 excesso (1456139, 11:19:10 → 11:18:02), FARC total 95,46 → 95,45; nenhuma meta |
+
+Todos os chamados alterados têm no seu período uma das oito datas novas (nenhuma
+diferença sem explicação). Tini/FAIA do painel, metas e índices do painel não
+mudam.
+
+M: a primeira versão gerada falhava com *Formula.Firewall* no motor do Power
+BI Desktop, mesmo com SharePoint/Web e SQL como Organizacional. O gerador passou
+a pôr tudo num único passo `Fonte`. Validado com o motor do Power BI Desktop
+(sem PBIX, arquivo por HTTP local): executa com Organizacional +
+Organizacional, firewall ativo e sem `FastCombine`; M = SQL (2.479 linhas, 35
+colunas, 0 diferenças). SharePoint Online real, OAuth2, PBIX, gateway e
+refresh no serviço ainda dependem do ambiente.

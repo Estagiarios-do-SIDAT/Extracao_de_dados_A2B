@@ -6,8 +6,8 @@
     O SQL Server nao le arquivos do computador do usuario, e a conta usada nas
     consultas nao tem permissao de BULK/OPENROWSET. Por isso os feriados chegam
     a consulta pelo parametro @Feriados (JSON), montado aqui a partir do
-    arquivo, filtrado pelo projeto declarado na consulta
-    ("-- FERIADOS-ESCOPO: <PROJETO>"). E o mesmo parametro que o Power BI envia.
+    arquivo. O calendario e o mesmo (o do TCU) para Virtual, Decision e A2B. E o
+    mesmo parametro que o Power BI envia.
 
     Dois modos:
       -Saida <prefixo>   executa e grava cada resultado em <prefixo>.rsN.csv
@@ -37,15 +37,14 @@ if (-not $ArquivoFeriados) { $ArquivoFeriados = Join-Path $Ferramentas '..\confi
 
 if (-not $Saida -and -not $GerarSql) { throw 'Informe -Saida (executar) ou -GerarSql (gerar arquivo para o SSMS).' }
 $sql = [System.IO.File]::ReadAllText((Resolve-Path -LiteralPath $Consulta).Path, [System.Text.Encoding]::UTF8)
-$projeto = Get-EscopoConsulta -Sql $sql
-$lista = Select-FeriadosProjeto -Feriados (Read-ArquivoFeriados -Arquivo $ArquivoFeriados) -Projeto $projeto
+$lista = Get-ListaFeriados -Feriados (Read-ArquivoFeriados -Arquivo $ArquivoFeriados)
 $json = ConvertTo-FeriadosJson -Lista $lista
-Write-Host ("Feriados: {0} itens para {1} ({2})" -f $lista.Count, $projeto, (Resolve-Path -LiteralPath $ArquivoFeriados).Path)
+Write-Host ("Feriados: {0} itens ({1})" -f $lista.Count, (Resolve-Path -LiteralPath $ArquivoFeriados).Path)
 
 if ($GerarSql) {
     $cabecalho = @(
         '-- Copia gerada por tools/executar_consulta.ps1 para execucao no SSMS.',
-        ('-- Feriados de {0} lidos de {1} em {2}.' -f $projeto, (Resolve-Path -LiteralPath $ArquivoFeriados).Path, (Get-Date -Format 'yyyy-MM-dd HH:mm')),
+        ('-- Feriados lidos de {0} em {1}.' -f (Resolve-Path -LiteralPath $ArquivoFeriados).Path, (Get-Date -Format 'yyyy-MM-dd HH:mm')),
         '-- Nao versionar: gere de novo sempre que o arquivo de feriados mudar.',
         ("DECLARE @Feriados nvarchar(max) = N'{0}';" -f $json.Replace("'", "''")),
         ''

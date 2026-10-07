@@ -275,7 +275,7 @@ Um chamado pode atender o FAIA (alguém pegou em 5 minutos) e estourar o FARC (s
 
 ## 10. Feriados e pontos facultativos
 
-A lista de datas que **não** são dias úteis fica no **arquivo de feriados** (`feriados.csv`), e não no SQL: no SharePoint para o painel, lido a cada atualização, e em `config/feriados.csv` para as consultas individuais. A A2B usa as linhas de `Escopo` `TODOS` ou `A2B`. Formato, validação e falhas em [feriados.md](feriados.md). A lista é usada só no **calendário comercial** (P3, P4 e P5). Chamados **P1 e P2 contam corrido** e ignoram essa lista por completo.
+A lista de datas que **não** são dias úteis fica no **arquivo de feriados** (`feriados.csv`), e não no SQL: no SharePoint para o painel, lido a cada atualização, e em `config/feriados.csv` para as consultas individuais. É o calendário do TCU, o mesmo para Virtual, Decision e A2B (não há lista por projeto). Formato, validação e falhas em [feriados.md](feriados.md). A lista é usada só no **calendário comercial** (P3, P4 e P5). Chamados **P1 e P2 contam corrido** e ignoram essa lista por completo.
 
 O bloco `[S.2]` do SQL recebe a lista no parâmetro `@Feriados`, valida e monta **duas** tabelas, e o FAIA e o FARC usam **as mesmas duas** — não existe um calendário para cada indicador:
 
@@ -299,24 +299,24 @@ O que entra em cada lista:
 ### Como atualizar
 
 1. Abra o `feriados.csv` no SharePoint.
-2. Acrescente uma linha por data, no formato `Data,Descricao,Escopo`. Ex.: `2026-06-05,Ponto facultativo - emenda após Corpus Christi,TODOS`. Um feriado fixo usa `MM-DD`, sem ano.
+2. Acrescente uma linha por data, no formato `Data,Descricao,Fonte`, com a Portaria na coluna `Fonte`. Ex.: `2026-06-05,Ponto facultativo - emenda após Corpus Christi,Portaria-TCU nº 1/2026`. Feriados nacionais fixos (`MM-DD`) já valem todo ano e não se repetem.
 3. Não inclua sábados e domingos — já são tratados automaticamente.
 4. Salve. A próxima atualização do painel já usa a lista nova: não é preciso mudar o SQL nem republicar o relatório.
 5. Copie o mesmo conteúdo para o `config/feriados.csv` dos três repositórios (Virtual, Decision, A2B) e rode `tools/verificar_feriados.ps1`; as consultas individuais passam a usar a lista nova.
 6. Valide um chamado P3/P4/P5 que atravesse a nova data.
 
-Data inválida, escopo desconhecido ou arquivo inacessível **falham a atualização** com mensagem. Data repetida entra uma vez só.
+Data inválida, coluna ausente ou arquivo inacessível **falham a atualização** com mensagem. Data repetida entra uma vez só.
 
 > **Manutenção anual.** Os feriados fixos já estão prontos e não precisam de nada. O que precisa de atenção **todo ano** são as datas únicas: os feriados móveis e os pontos facultativos do TCU de cada ano coberto pela janela.
 
-**Situação atual do cadastro.** A lista da A2B cobre a janela de 12 ciclos: os pontos facultativos de 2025 a partir de outubro e **2026 completo**, conferidos contra as portarias do TCU.
+**Situação atual do cadastro.** Calendário do TCU de **2025 e 2026 completos**, conferido no Boletim do TCU pelos códigos de autenticidade ([feriados.md](feriados.md), seção 2):
 
-| Ano | Portaria anual | Alterações | Datas por data específica no painel |
+| Ano | Portaria anual | Alterações | Datas por ano no arquivo |
 |---|---|---|---|
-| 2025 | Portaria-TCU nº 10, de 13/01/2025 | nº 67, nº 157 e nº 176 de 2025 | 27/10, 21/11, 24/12, 26/12, 31/12 |
-| 2026 | Portaria-TCU nº 1, de 08/01/2026 | nº 93 de 2026 | 02/01, 16–18/02, 02/04, 03/04, 05/04, 20/04, 04/06, 05/06, 29/06, 28/10, 24/12, 31/12 |
+| 2025 | Portaria-TCU nº 10, de 13/01/2025 | nº 67, nº 157 e nº 176 de 2025 | 03/03, 04/03, 05/03, 17/04, 18/04, 02/05, 19/06, 20/06, 27/10, 21/11, 24/12, 26/12, 31/12 |
+| 2026 | Portaria-TCU nº 1, de 08/01/2026 (02/01 também pela nº 179/2025) | nº 93 de 2026 | 02/01, 16–18/02, 02/04, 03/04, 20/04, 04/06, 05/06, 29/06, 28/10, 24/12, 31/12 |
 
-O PDF da portaria de 2026 guardado em `Documentos e Relatórios` é a versão **original**: a data de 29/06/2026 veio depois, pela Portaria nº 93/2026, e não aparece nele. As datas de 2025 anteriores a outubro estão no arquivo só para a Virtual e a Decision (escopo sem `A2B`): a A2B não as cadastrava, e a diferença foi mantida ([feriados.md](feriados.md), seção 3).
+O PDF da portaria de 2026 guardado em `Documentos e Relatórios` é a versão **original**: a data de 29/06/2026 veio depois, pela Portaria nº 93/2026, e não aparece nele. Até 2026-10-06 a A2B só tinha as datas de 2025 a partir de 27/10 e tinha 05/04/2026 (Páscoa, domingo), que não está na Portaria; desde 2026-10-07 usa o calendário completo, igual ao da Virtual e da Decision.
 
 As consultas individuais (`consulta_faia_a2b_protect4.sql` e `consulta_farc_a2b_protect4.sql`) leem a mesma lista da A2B, pelo mesmo parâmetro, e montam `#FeriadosFixos` e `#FeriadosPorData`. Não há mais lista própria em cada consulta.
 
@@ -392,7 +392,7 @@ Se os dois números forem diferentes, existe duplicidade e o resultado não deve
 **Limitações conhecidas:**
 
 - os pontos facultativos de **2027 ainda não estão cadastrados**. A partir de janeiro de 2027 o calendário comercial ficará incompleto até que sejam incluídos.
-- o código M (`.m`) não foi executado no ambiente de desenvolvimento (sem Power BI Desktop); o SQL foi testado com o parâmetro `@Feriados` exatamente como o Power Query o envia. Validar no primeiro refresh ([feriados.md](feriados.md)).
+- o `.m` foi validado com o motor do Power BI Desktop, fora do PBIX e com o arquivo de feriados servido localmente: executa com as duas fontes como Organizacional e o firewall de privacidade ativo, e devolve o mesmo resultado do SQL. A primeira versão gerada (um passo por etapa) era recusada pelo firewall (*Formula.Firewall*); a atual faz tudo num único passo (`Fonte`). O acesso ao SharePoint Online real (OAuth2), o gateway e o refresh no serviço ainda dependem de validação no PBIX ([feriados.md](feriados.md)).
 - nas colunas compartilhadas `Data Abertura` e `Data Captura`, o painel usa o valor da metade FAIA, que difere do FARC individual em alguns chamados — 9 dos 234 do ciclo 24/03–23/04/2026. As colunas do FARC coincidem nos 234.
 - a regra de arredondamento (proporcional, em vez de "hora ou fração") **ainda não foi confirmada contra o edital**. Se o edital exigir "hora ou fração", os quatro indicadores do projeto precisarão ser revistos.
 - desde 2026-10-07 o painel e as duas consultas individuais leem a mesma lista de feriados da A2B. A diferença antiga do FAIA individual (sem `2025-12-24` e `2025-12-31`) acabou.
@@ -440,8 +440,8 @@ Sem mexer no SQL nem republicar o relatório:
 
 1. Confirme a data na fonte oficial do TCU (seção 10).
 2. Abra o `feriados.csv` no SharePoint.
-3. **Adicionar:** inclua a linha (`AAAA-MM-DD` ou, para feriado fixo, `MM-DD`), com o escopo (`TODOS` ou `A2B`).
-4. **Corrigir:** edite a data, a descrição ou o escopo na linha existente.
+3. **Adicionar:** inclua a linha (`AAAA-MM-DD`), com a Portaria na coluna `Fonte`. Feriados nacionais fixos (`MM-DD`) já valem todo ano.
+4. **Corrigir:** edite a data, a descrição ou a fonte na linha existente.
 5. **Remover:** apague a linha inteira.
 6. Salve. A próxima atualização do painel já usa a lista nova.
 7. Copie o mesmo conteúdo para o `config/feriados.csv` dos três repositórios e rode `tools/verificar_feriados.ps1`; as consultas individuais passam a usar a lista nova.

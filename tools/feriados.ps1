@@ -1,15 +1,16 @@
 # Leitura e validacao do arquivo de feriados (config/feriados.csv).
 #
 # Usado por executar_consulta.ps1, gerar_powerbi_m.ps1 e verificar_feriados.ps1.
-# As regras sao as mesmas do codigo M do Power BI (powerbi/*.m):
-#   - colunas obrigatorias: Data, Descricao, Escopo; separador virgula ou ';';
-#   - Data: AAAA-MM-DD (data unica) ou MM-DD (feriado fixo, vale todo ano);
-#   - Escopo: TODOS, ou projetos separados por ';' (VIRTUAL, DECISION, A2B);
-#   - qualquer linha invalida interrompe tudo, com o numero da linha;
-#   - data repetida no mesmo projeto entra uma vez so (vale a primeira descricao);
-#   - projeto sem nenhum feriado e erro: nunca se calcula com zero feriados.
-
-$ProjetosFeriados = @('VIRTUAL', 'DECISION', 'A2B')
+# Um unico calendario (o do TCU) para Virtual, Decision e A2B. As regras sao as
+# mesmas do codigo M do Power BI (powerbi/*.m):
+#   - colunas obrigatorias: Data, Descricao, Fonte; separador virgula ou ';';
+#   - Data: MM-DD (feriado nacional fixo, vale todo ano) ou AAAA-MM-DD (data
+#     unica do ano: feriado movel ou ponto facultativo da Portaria do TCU);
+#   - qualquer Data invalida interrompe tudo, com o numero da linha;
+#   - data repetida entra uma vez so (vale a primeira descricao);
+#   - arquivo sem nenhum feriado e erro: nunca se calcula com zero feriados.
+# A coluna Fonte (Portaria do TCU) e conferida so por verificar_feriados.ps1:
+# ela documenta a origem e nao entra no calculo.
 
 function Read-ArquivoFeriados {
     param([Parameter(Mandatory = $true)][string]$Arquivo)
@@ -24,9 +25,9 @@ function Read-ArquivoFeriados {
     # Separador: virgula, ou ponto e virgula (Excel em portugues), pelo cabecalho.
     $separador = ','
     $porPontoVirgula = @($linhasTexto[0].Split(';') | ForEach-Object { $_.Trim().Trim('"') })
-    if ($porPontoVirgula -contains 'Data' -and $porPontoVirgula -contains 'Escopo') { $separador = ';' }
+    if ($porPontoVirgula -contains 'Data' -and $porPontoVirgula -contains 'Fonte') { $separador = ';' }
     $cabecalho = @($linhasTexto[0].Split($separador) | ForEach-Object { $_.Trim().Trim('"') })
-    $faltando = @('Data', 'Descricao', 'Escopo' | Where-Object { $cabecalho -notcontains $_ })
+    $faltando = @('Data', 'Descricao', 'Fonte' | Where-Object { $cabecalho -notcontains $_ })
     if ($faltando.Count -gt 0) { throw ("Coluna(s) ausente(s) no arquivo de feriados: {0}" -f ($faltando -join ', ')) }
 
     $registros = @($texto | ConvertFrom-Csv -Delimiter $separador)
@@ -39,8 +40,8 @@ function Read-ArquivoFeriados {
         $linha = $i + 2
         $data = ("" + $r.Data).Trim()
         $desc = ("" + $r.Descricao).Trim()
-        $escopoTxt = ("" + $r.Escopo).Trim()
-        if ($data -eq '' -and $desc -eq '' -and $escopoTxt -eq '') { continue }
+        $fonte = ("" + $r.Fonte).Trim()
+        if ($data -eq '' -and $desc -eq '' -and $fonte -eq '') { continue }
 
         $dt = [datetime]::MinValue
         $norm = $null
@@ -49,16 +50,10 @@ function Read-ArquivoFeriados {
         } elseif ($data -match '^\d{2}-\d{2}$' -and [datetime]::TryParseExact("2000-$data", 'yyyy-MM-dd', $inv, $estilo, [ref]$dt)) {
             $norm = $dt.ToString('MM-dd', $inv)
         } else {
-            $erros.Add("linha ${linha}: Data invalida '$data' (use AAAA-MM-DD ou MM-DD)")
-        }
-
-        $itens = @($escopoTxt.ToUpperInvariant().Split(';') | ForEach-Object { $_.Trim() } | Where-Object { $_ -ne '' })
-        $invalidos = @($itens | Where-Object { $_ -ne 'TODOS' -and $ProjetosFeriados -notcontains $_ })
-        if ($itens.Count -eq 0 -or $invalidos.Count -gt 0 -or ($itens -contains 'TODOS' -and $itens.Count -gt 1)) {
-            $erros.Add("linha ${linha}: Escopo invalido '$escopoTxt' (use TODOS ou VIRTUAL;DECISION;A2B)")
+            $erros.Add("linha ${linha}: Data invalida '$data' (use MM-DD ou AAAA-MM-DD)")
         }
         if ($null -ne $norm) {
-            $saida.Add([pscustomobject]@{ Linha = $linha; Data = $norm; Descricao = $desc; Escopo = $itens })
+            $saida.Add([pscustomobject]@{ Linha = $linha; Data = $norm; Descricao = $desc; Fonte = $fonte })
         }
     }
     if ($erros.Count -gt 0) { throw ("Arquivo de feriados invalido ({0}):`n  {1}" -f $caminho, ($erros -join "`n  ")) }
@@ -66,35 +61,23 @@ function Read-ArquivoFeriados {
     return , $saida.ToArray()
 }
 
-function Select-FeriadosProjeto {
-    param([Parameter(Mandatory = $true)][object[]]$Feriados, [Parameter(Mandatory = $true)][string]$Projeto)
-    $p = $Projeto.ToUpperInvariant()
-    if ($ProjetosFeriados -notcontains $p) { throw "Projeto desconhecido: $Projeto" }
+function Get-ListaFeriados {
+    # Lista enviada ao SQL: uma entrada por data (a repetida entra uma vez).
+    param([Parameter(Mandatory = $true)][object[]]$Feriados)
     $vistos = @{}
     $lista = New-Object System.Collections.Generic.List[object]
     foreach ($f in $Feriados) {
-        if (-not ($f.Escopo -contains 'TODOS' -or $f.Escopo -contains $p)) { continue }
         if ($vistos.ContainsKey($f.Data)) {
-            Write-Warning ("Feriados: data {0} repetida para {1} (linhas {2} e {3}); vale a primeira." -f $f.Data, $p, $vistos[$f.Data], $f.Linha)
+            Write-Warning ("Feriados: data {0} repetida (linhas {1} e {2}); vale a primeira." -f $f.Data, $vistos[$f.Data], $f.Linha)
             continue
         }
         $vistos[$f.Data] = $f.Linha
         $lista.Add([pscustomobject]@{ data = $f.Data; descricao = $f.Descricao })
     }
-    if ($lista.Count -eq 0) { throw "Nenhum feriado para o projeto $p no arquivo de feriados." }
     return , $lista.ToArray()
 }
 
 function ConvertTo-FeriadosJson {
     param([Parameter(Mandatory = $true)][object[]]$Lista)
     return (ConvertTo-Json -InputObject @($Lista) -Compress)
-}
-
-function Get-EscopoConsulta {
-    # Projeto do arquivo de feriados declarado na propria consulta:
-    #   -- FERIADOS-ESCOPO: DECISION
-    param([Parameter(Mandatory = $true)][string]$Sql)
-    $m = [regex]::Match($Sql, '(?m)^--\s*FERIADOS-ESCOPO:\s*([A-Za-z0-9]+)\s*$')
-    if (-not $m.Success) { throw 'A consulta nao declara a linha "-- FERIADOS-ESCOPO: <PROJETO>".' }
-    return $m.Groups[1].Value.ToUpperInvariant()
 }
