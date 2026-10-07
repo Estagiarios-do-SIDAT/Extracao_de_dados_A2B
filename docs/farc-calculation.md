@@ -90,7 +90,7 @@ Por que nunca é usado? O Plano C só entraria se o chamado não tivesse data de
 
 Contam três status: "Em andamento", "Aberto, aguarda atendimento" (a fila inicial) e "Reaberto". Qualquer outro pausa o cronômetro. A lista é explícita, e não o campo `cr_stat.hold`: o cadastro também marca com `hold = 0` status terminais, administrativos e de problema/mudança, que não são atendimento. "Aguarda atendimento" tem `hold = 0` e continua sem contar: foi avaliado e reprovado pelo impacto (em 12 ciclos, +983 h em 1.061 chamados, FARC total de 38,33 para 129,76 e 12 chamados passando a "Não Atende").
 
-"Reaberto" conta por orientação do gerente (2026-10-06): quando o analista encerra o chamado por engano como "Resolvido, concluído", o correto é reabrir e pôr o status certo, e esse tempo é de atendimento. Como os outros status, só conta dentro da posse da A2B; é um status de trabalho (não é fila), então segue a mesma regra do "Em andamento" herdado (seção 7.1). O `Indicador Reabertura` continua sendo só um indicador: ele diz que houve reabertura e não soma tempo.
+"Reaberto" conta por orientação do gerente (2026-10-06): quando o analista encerra o chamado por engano como "Resolvido, concluído", o correto é reabrir e pôr o status certo, e esse tempo é de atendimento. Como os outros status, só conta dentro da posse da A2B. Se o chamado já chega na A2B em "Reaberto", ligado por outro grupo, esse trecho não conta (seção 7.1). O `Indicador Reabertura` continua sendo só um indicador: ele diz que houve reabertura e não soma tempo.
 
 **SOLN seguido de reabertura.** Quando o próximo evento de status depois de um `SOLN` é a reabertura (`RO`, "Resolvido, concluído" → "Reaberto"), o trecho `SOLN → RO` é período resolvido e não conta; o "Reaberto" volta a contar. A pausa vai exatamente do `SOLN` ao `RO`. Um `SOLN` sem reabertura em seguida não muda a linha de status. No fluxo `Em andamento → SOLN → Reaberto → Em homologação`:
 
@@ -149,9 +149,22 @@ WHERE o.is\_a2b = 1
 
 ## 7\. Dois ajustes finos no tempo ativo
 
-### 7.1. O "Em andamento" herdado não conta
+### 7.1. O "Em andamento" herdado conta a partir da entrada na A2B
 
-Se o chamado chega na A2B já em "Em andamento" ligado por outro grupo, esse pedaço não conta. A A2B só conta o "Em andamento" que começou dentro da janela dela. A fila "Aberto, aguarda atendimento" é exceção e conta sempre.
+"Em andamento" **herdado** é quando o chamado entra na A2B já em "Em andamento": o status foi ligado antes, enquanto o chamado estava com outro grupo, e continua ligado no momento da transferência.
+
+Nesse caso, o cronômetro da A2B começa **na própria entrada na A2B**:
+
+* o tempo anterior à entrada não conta (era de outro grupo);
+* o tempo depois de o chamado sair da A2B não conta;
+* a partir da entrada valem as regras normais: a primeira ida para um status de pausa (Aguarda atendimento, Agendado, Em homologação...) para o cronômetro, e o terminal corta a contagem;
+* se o chamado sai e volta já em "Em andamento", cada volta conta a partir da sua própria entrada.
+
+> \*Exemplo:\* chamado em "Em andamento" desde 13:00 com outro grupo, entra na A2B às 14:00 e vai para "Aguarda atendimento" às 16:00. Contam **2h** (14:00 → 16:00). As 13:00 → 14:00 não contam.
+
+A fila "Aberto, aguarda atendimento" também conta desde a entrada, como sempre. Já um "Reaberto" ligado por outro grupo antes da entrada não conta: só conta o "Reaberto" que começa com o chamado na A2B.
+
+Esta regra só define onde começa o trecho herdado. Ela não reativa o antigo motor "Normal" (V10), que contava a partir da captura e não reconhecia todas as pausas.
 
 ### 7.2. O piso do Inicial
 
@@ -169,20 +182,23 @@ b.open\_date + ISNULL(ig.init\_gasto\_seg, 0) AS piso\_inicial\_epoch
 
 A soma aqui não soma tempo no resultado: ela calcula a **hora de largada**. `open\_date` é a hora da criação e `init\_gasto\_seg` é o tempo gasto nela; somando, chega-se ao ponto "criação + tempo da criação", que é a hora mínima em que o cronômetro pode começar. Como a largada fica mais tarde, o total acaba menor (o pedacinho inicial fica de fora).
 
-É na tabela `#PecasAtivasA2B` que tudo se junta. Ela cruza duas coisas: os trechos em que o chamado estava **ativo** e as janelas em que ele estava **com a A2B**. Só sobra o que aparece nas duas ao mesmo tempo, e esses pedaços ("peças") são o que de fato conta. É aqui também que os dois ajustes acima entram: o piso da criação (a largada empurrada para frente) e a regra do herdado.
+É na tabela `#PecasAtivasA2B` que tudo se junta. Ela cruza duas coisas: os trechos em que o chamado estava **ativo** e as janelas em que ele estava **com a A2B**. Só sobra o que aparece nas duas ao mesmo tempo, e esses pedaços ("peças") são o que de fato conta. É aqui também que os dois ajustes acima entram: o piso da criação (a largada empurrada para frente) e o início do trecho herdado.
+
+Cada peça começa em `ov.ini\_ep`, o maior entre o início do trecho ativo e a entrada na A2B (já com o piso), e termina em `ov.fim\_ep`, o menor entre o fim do trecho e a saída da A2B. Por isso nenhuma peça começa antes da entrada nem passa da saída.
 
 A regra do herdado, no código:
 
 ```sql
 WHERE ov.fim\_ep > ov.ini\_ep
-  AND (s.aberto\_fila = 1 OR s.ini >= j.win\_inicio\_epoch);
+  AND (s.aberto\_fila = 1 OR s.em\_andamento = 1 OR s.ini >= j.win\_inicio\_epoch);
 ```
 
 Lendo em português, linha por linha:
 
 * `ov.fim\_ep > ov.ini\_ep`: só mantém pedaço que tem duração de verdade (o fim vem depois do começo).
-* `s.aberto\_fila = 1`: se o trecho é a fila "Aberto, aguarda atendimento", conta sempre.
-* `s.ini >= j.win\_inicio\_epoch`: se é "Em andamento", só conta se começou dentro da janela da A2B; se começou antes (herdado de outro grupo), fica de fora.
+* `s.aberto\_fila = 1`: se o trecho é a fila "Aberto, aguarda atendimento", conta desde a entrada.
+* `s.em\_andamento = 1`: se o trecho é "Em andamento", conta desde a entrada, mesmo que o status tenha sido ligado antes dela (herdado).
+* `s.ini >= j.win\_inicio\_epoch`: qualquer status ativo que começou dentro da janela conta. O que sobra de fora é só o "Reaberto" ligado antes da entrada.
 
 \---
 
@@ -306,19 +322,17 @@ WHEN b.categoria\_sym LIKE N'A2B.Realizar - Passagem de turno%'
 
 Quando a categoria começa com um desses dois nomes, `#MotorBase` escolhe `#TempoAtendimentoRotina`. As demais categorias seguem para o caminho dos chamados normais, calculado pelos períodos de status ativo.
 
-Esse **tempo ativo** (o segundo tipo) é medido por **dois cálculos**, e a consulta fica com o **maior** dos dois. Os dois só contam o tempo dentro das janelas da A2B — **nenhum deles conta tempo de outro grupo**. A diferença entre eles aparece num caso: o chamado **chega na A2B já em "Em andamento"** — o status foi ligado antes, enquanto o chamado ainda estava com outro grupo. É nesse trecho que os dois divergem.
+Esse **tempo ativo** (o segundo tipo) é medido por **dois cálculos**, e a consulta fica com o **maior** dos dois. Os dois só contam o tempo dentro das janelas da A2B — **nenhum deles conta tempo de outro grupo**.
 
 **Cálculo 1 — períodos ativos** (`#TempoAtivoJanelasA2B`)
 
-Conta o "Em andamento" **mais a fila de espera** ("Aberto, aguarda atendimento"). Mas exige que o "Em andamento" tenha **começado dentro da janela da A2B**. Se o chamado já chega com o "Em andamento" ligado de antes, este cálculo descarta o trecho inteiro — inclusive a parte que já era da A2B.
-
-> \*Exemplo:\* chamado em "Em andamento" desde 13:00 com outro grupo, entra na A2B às 14:00 e sai do status às 16:00. Como o "Em andamento" começou antes da A2B, o Cálculo 1 descarta tudo: \*\*0\*\*.
+Conta o "Em andamento", o "Reaberto" **e a fila de espera** ("Aberto, aguarda atendimento"), cruzando a linha de status inteira com as janelas da A2B. É ele que conta o "Em andamento" herdado a partir da entrada na A2B (seção 7.1).
 
 **Cálculo 2 — histórico de status** (`#TempoAtendimentoStatusLead`)
 
-Conta **só o "Em andamento"** (e o "Reaberto"), sem a fila. Mas não faz essa exigência: conta o "Em andamento" a partir do momento em que a A2B assumiu o chamado. Assim, aproveita a parte que foi da A2B mesmo quando o status já vinha ligado de antes. (Continua sem contar o tempo do outro grupo: só conta o que caiu dentro da janela da A2B.)
+Conta **só o "Em andamento"** (e o "Reaberto"), sem a fila, a partir das mudanças de status registradas depois da entrada na A2B. Por isso ele não enxerga um "Em andamento" que já vinha ligado de antes: nesse trecho, quem conta é o Cálculo 1.
 
-> \*Exemplo:\* no mesmo caso, o Cálculo 2 conta das 14:00 (entrada na A2B) às 16:00: \*\*2h\*\*. A consulta fica com o maior dos dois, 2h.
+> \*Exemplo:\* chamado em "Em andamento" desde 13:00 com outro grupo, entra na A2B às 14:00 e vai para "Aguarda atendimento" às 16:00. O Cálculo 1 conta \*\*2h\*\* (14:00 → 16:00); o Cálculo 2 conta \*\*0\*\*, porque não houve ida para "Em andamento" depois da entrada. A consulta fica com o maior dos dois, 2h.
 
 No SQL, a escolha final (fora rotina) é o maior dos dois:
 
@@ -369,7 +383,7 @@ cheio (`excedente / 3600`).
 |Terminal|`#TerminalFARC`|resolução se consistente; senão fechamento|
 |Ativo|`#StatusEvA2B`|"Em andamento", "Aberto, aguarda atendimento" e "Reaberto"|
 |Janelas|`#JanelasA2B`|todos os períodos sob a A2B (reposse)|
-|Piso/herdado|`#PisoInicial` / `#PecasAtivasA2B`|corta criação e "Em andamento" herdado|
+|Piso/herdado|`#PisoInicial` / `#PecasAtivasA2B`|corta o tempo da criação; o "Em andamento" herdado começa na entrada na A2B|
 |Feriados|`#FeriadosFixos` / `#FeriadosPorData`, montadas de `@Feriados` (arquivo de feriados)|exclui feriados e facultativos dos cálculos comerciais P3/P4/P5|
 |Soma (interseção)|`#TempoAtivoJanelasA2B`|tempo ativo nas janelas A2B; corrida (P1/P2) ou comercial 08h-20h com calendário (P3/P4/P5)|
 |Soma (por status)|`#StatusEventosLead`→`#IntervalosLead`→`#TempoAtendimentoStatusLead`|"Em andamento" e "Reaberto" por mudança de status, recortados nas janelas A2B e no calendário comercial|

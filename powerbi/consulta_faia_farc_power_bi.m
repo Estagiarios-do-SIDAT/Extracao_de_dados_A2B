@@ -1828,13 +1828,17 @@ SELECT
             THEN 1 ELSE 0
     END AS origem_ativo,
     -- Marca se o status ativo e a FILA 'Aberto, aguarda atendimento' (espera que
-    -- viaja com o chamado e conta ao entrar na A2B) em vez de 'Em andamento'
-    -- (trabalho que pertence a quem estava executando). Usado para nao contar
-    -- 'Em andamento' herdado de outro grupo no instante da entrada na A2B.
+    -- viaja com o chamado e conta ao entrar na A2B) e, abaixo, se e 'Em andamento'.
+    -- As duas marcas decidem, em [6.3.6], o que conta quando o status ativo ja
+    -- vinha de antes da entrada na A2B.
     CASE WHEN dest.destino COLLATE Latin1_General_CI_AI LIKE N'Aberto%aguarda%atendimento%'
          THEN 1 ELSE 0 END AS destino_aberto,
     CASE WHEN orig.origem COLLATE Latin1_General_CI_AI LIKE N'Aberto%aguarda%atendimento%'
-         THEN 1 ELSE 0 END AS origem_aberto
+         THEN 1 ELSE 0 END AS origem_aberto,
+    CASE WHEN dest.destino COLLATE Latin1_General_CI_AI IN (N'Em andamento', N'In Progress')
+         THEN 1 ELSE 0 END AS destino_andamento,
+    CASE WHEN orig.origem COLLATE Latin1_General_CI_AI IN (N'Em andamento', N'In Progress')
+         THEN 1 ELSE 0 END AS origem_andamento
 INTO #FARC_StatusEvA2B
 FROM #FARC_StatusRaw AS s
 CROSS APPLY (SELECT q1 = CHARINDEX(N'''', s.resto)) AS c1
@@ -1880,8 +1884,8 @@ WHERE al.system_time IS NOT NULL
 
 -- Origem tratada como a fila inicial, so para o raro caso de o SOLN ser o 1o
 -- evento de status.
-INSERT INTO #FARC_StatusEvA2B (id, ev_epoch, log_id, destino_ativo, origem_ativo, destino_aberto, origem_aberto)
-SELECT sr.id, sr.ev_epoch, sr.log_id, 0, 1, 0, 1
+INSERT INTO #FARC_StatusEvA2B (id, ev_epoch, log_id, destino_ativo, origem_ativo, destino_aberto, origem_aberto, destino_andamento, origem_andamento)
+SELECT sr.id, sr.ev_epoch, sr.log_id, 0, 1, 0, 1, 0, 0
 FROM #FARC_SolnReaberturaA2B AS sr;
 
 CREATE INDEX IX_StatusEvA2B_id_epoch ON #FARC_StatusEvA2B(id, ev_epoch);
@@ -1900,7 +1904,7 @@ IF OBJECT_ID('tempdb..#FARC_SegAtivoA2B') IS NOT NULL DROP TABLE #FARC_SegAtivoA
         -- SQL Server, e o FARC variava de uma execucao para outra. act_log.id e a
         -- sequencia de gravacao: na ordem (segundo, id) a cadeia origem->destino fica
         -- consistente em 16.114 de 16.115 pares medidos.
-        id, ev_epoch, destino_ativo, destino_aberto,
+        id, ev_epoch, destino_ativo, destino_aberto, destino_andamento,
         LEAD(ev_epoch) OVER (PARTITION BY id ORDER BY ev_epoch, log_id) AS prox
     FROM #FARC_StatusEvA2B
 ),
@@ -1908,14 +1912,14 @@ prim AS (
     SELECT id, MIN(ev_epoch) AS primeiro_epoch FROM #FARC_StatusEvA2B GROUP BY id
 ),
 prim_orig AS (
-    SELECT se.id, se.origem_ativo, se.origem_aberto
+    SELECT se.id, se.origem_ativo, se.origem_aberto, se.origem_andamento
     FROM #FARC_StatusEvA2B AS se
     JOIN prim AS p ON p.id = se.id AND p.primeiro_epoch = se.ev_epoch
 ),
 seg AS (
     -- segmentos a partir de cada evento (status de destino vale até o próximo)
     SELECT e.id, e.ev_epoch AS ini, COALESCE(e.prox, tf.terminal_epoch) AS fim,
-           e.destino_ativo AS ativo, e.destino_aberto AS aberto_fila
+           e.destino_ativo AS ativo, e.destino_aberto AS aberto_fila, e.destino_andamento AS em_andamento
     FROM ev AS e
     JOIN #FARC_TerminalFARC AS tf ON tf.id = e.id
 
@@ -1923,7 +1927,7 @@ seg AS (
 
     -- segmento inicial (criação -> primeiro evento), status = origem do 1o evento
     SELECT b.id, b.open_date AS ini, p.primeiro_epoch AS fim,
-           MAX(po.origem_ativo) AS ativo, MAX(po.origem_aberto) AS aberto_fila
+           MAX(po.origem_ativo) AS ativo, MAX(po.origem_aberto) AS aberto_fila, MAX(po.origem_andamento) AS em_andamento
     FROM #FARC_BaseEscopo_FARC_P4 AS b
     JOIN prim AS p ON p.id = b.id
     JOIN prim_orig AS po ON po.id = b.id
@@ -1935,7 +1939,7 @@ seg AS (
     -- chamados sem nenhum evento de status: status de criação o tempo todo.
     -- Criação = 'Aberto, aguarda atendimento' (fila), logo aberto_fila = 1.
     SELECT b.id, b.open_date AS ini, tf.terminal_epoch AS fim, CONVERT(int, 1) AS ativo,
-           CONVERT(int, 1) AS aberto_fila
+           CONVERT(int, 1) AS aberto_fila, CONVERT(int, 0) AS em_andamento
     FROM #FARC_BaseEscopo_FARC_P4 AS b
     JOIN #FARC_TerminalFARC AS tf ON tf.id = b.id
     WHERE b.open_date IS NOT NULL
@@ -1946,7 +1950,8 @@ SELECT
     s.id,
     s.ini,
     CASE WHEN s.fim > tf.terminal_epoch THEN tf.terminal_epoch ELSE s.fim END AS fim,
-    s.aberto_fila
+    s.aberto_fila,
+    s.em_andamento
 INTO #FARC_SegAtivoA2B
 FROM seg AS s
 JOIN #FARC_TerminalFARC AS tf ON tf.id = s.id
@@ -2009,13 +2014,15 @@ CROSS APPLY (
         fim_ep = CASE WHEN s.fim < j.win_fim_epoch THEN s.fim ELSE j.win_fim_epoch END
 ) AS ov
 WHERE ov.fim_ep > ov.ini_ep
-  -- Regra do herdado: a FILA 'Aberto, aguarda atendimento' (aberto_fila = 1)
-  -- conta normalmente ao entrar na A2B, pois e espera que viaja com o chamado.
-  -- Ja um 'Em andamento' (aberto_fila = 0) so conta se tiver COMECADO dentro da
-  -- janela de posse A2B (s.ini >= win_inicio). Se o 'Em andamento' ja estava
-  -- ligado ANTES da entrada (herdado de outro grupo/analista), nao conta o
-  -- trecho ate a A2B assumir de fato. Corrige casos como o 1683467.
-  AND (s.aberto_fila = 1 OR s.ini >= j.win_inicio_epoch);
+  -- Status ativo que ja vinha de ANTES da entrada na A2B (s.ini < win_inicio):
+  --   - a FILA 'Aberto, aguarda atendimento' (aberto_fila = 1) conta;
+  --   - o 'Em andamento' herdado (em_andamento = 1) conta;
+  --   - o 'Reaberto' herdado nao conta.
+  -- Em todos os casos a peca comeca em ov.ini_ep = MAX(inicio do segmento,
+  -- entrada na A2B) e termina em MIN(fim do segmento, saida da A2B): nada antes
+  -- da entrada nem depois da saida e contado, e as pausas e o terminal ja
+  -- cortaram o segmento. Status ativo iniciado dentro da janela conta sempre.
+  AND (s.aberto_fila = 1 OR s.em_andamento = 1 OR s.ini >= j.win_inicio_epoch);
 
 CREATE INDEX IX_PecasAtivasA2B_id ON #FARC_PecasAtivasA2B(id);
 
