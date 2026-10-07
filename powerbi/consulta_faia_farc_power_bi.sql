@@ -1,5 +1,6 @@
 -- =============================================================================
--- PARAMETRO EDITAVEL  (Power Query > Etapas aplicadas > Fonte > engrenagem)
+-- PARAMETRO EDITAVEL  (no Power BI: Editor Avancado da consulta, no inicio do
+-- texto SqlTexto; no repositorio: altere aqui e gere de novo powerbi/consulta_faia_farc_power_bi.m)
 --
 --   Quantidade de ciclos COMPLETOS carregados. Padrao: 12.
 --   Cada ciclo vai do dia 24 de um mes ate o dia 23 do mes seguinte (regra da
@@ -20,7 +21,9 @@ Uso:
   - Conector: SQL Server
   - Banco de dados: mdb
   - Modo: Importacao
-  - Campo "Instrucao SQL": colar este arquivo inteiro
+  - NAO colar este arquivo em "Instrucao SQL": a consulta do relatorio e
+    powerbi/consulta_faia_farc_power_bi.m (Consulta Nula > Editor Avancado), que le os
+    feriados do SharePoint e envia o parametro @Feriados a este SQL.
   - "Adicionar colunas de relacao": desmarcado
 
 Periodo:
@@ -146,7 +149,7 @@ DECLARE @PBI_FornecedorGrupo varbinary(16) = 0xCE4FDD26D5053545BF4A11332BB07485;
 -- O ciclo atualmente em andamento e excluido.
 --
 -- @PBI_QuantidadeCiclos e declarado na PRIMEIRA linha util do arquivo, para
--- ficar visivel no topo da caixa 'Instrucao SQL' da etapa Fonte. Voltar N meses
+-- ficar visivel no inicio do texto SqlTexto da consulta M. Voltar N meses
 -- a partir de um dia 24 cai sempre em outro dia 24, entao a janela comeca
 -- exatamente no inicio de um ciclo, qualquer que seja N.
 DECLARE @PBI_HojeBrasil date =
@@ -214,84 +217,69 @@ VALUES
     (4, 240 * 60,       'COMERCIAL',  36 * 60 * 60,       'COMERCIAL'),
     (5, 720 * 60,       'COMERCIAL', 360 * 60 * 60,       'COMERCIAL');
 
+-- FERIADOS-ESCOPO: A2B
 --------------------------------------------------------------------------------
--- [S.2] Feriados e pontos facultativos (compartilhado - CORRECAO FUNCIONAL)
+-- [S.2] Feriados e pontos facultativos (compartilhado)
 --
--- Tabela unica para os dois indicadores. Contem a UNIAO dos dois calendarios que
--- existiam antes, ou seja, inclui 2025-12-24 e 2025-12-31, que faltavam no lado
--- FAIA. Ver a nota no cabecalho.
+-- A lista de feriados NAO fica mais neste arquivo. Ela vem do arquivo de
+-- feriados (config/feriados.csv; no Power BI, a copia no SharePoint), so com as
+-- linhas do escopo declarado em "FERIADOS-ESCOPO", pelo parametro @Feriados
+-- (JSON):
+--   [{"data":"12-25","descricao":"Natal"},{"data":"2026-04-03","descricao":"..."}]
+--   MM-DD      = feriado fixo, vale todo ano;
+--   AAAA-MM-DD = data unica (feriado movel ou ponto facultativo).
+-- Quem preenche @Feriados: tools/executar_consulta.ps1 (consultas de queries/)
+-- e o codigo M de powerbi/*.m (Power BI). Sem @Feriados a consulta nem compila;
+-- lista vazia, JSON ou data invalida param com erro: nunca se calcula com zero
+-- feriados. Data repetida entra uma vez.
 --
--- Regra de cadastro:
---   - Feriados fixos: MM-DD, porque se repetem todos os anos.
---   - Feriados moveis/diferenciados e pontos facultativos: YYYY-MM-DD.
---
--- Regra de contagem:
+-- Regra de contagem (inalterada):
 --   - CORRIDA: conta 24h, sem desconto de feriado/facultativo.
 --   - COMERCIAL: conta somente segunda a sexta, 08:00-20:00, zerando os dias
 --     listados como feriado/facultativo.
 --------------------------------------------------------------------------------
+IF OBJECT_ID('tempdb..#PBI_FeriadosEntrada') IS NOT NULL DROP TABLE #PBI_FeriadosEntrada;
+CREATE TABLE #PBI_FeriadosEntrada (data nvarchar(100) NULL, descricao nvarchar(200) NULL);
+IF ISJSON(@Feriados) = 1
+    INSERT INTO #PBI_FeriadosEntrada (data, descricao)
+    SELECT LTRIM(RTRIM(j.data)), LTRIM(RTRIM(j.descricao))
+    FROM OPENJSON(@Feriados) WITH (data nvarchar(100) '$.data', descricao nvarchar(200) '$.descricao') AS j;
+IF ISNULL(ISJSON(@Feriados), 0) = 0 OR NOT EXISTS (SELECT 1 FROM #PBI_FeriadosEntrada)
+BEGIN
+    ;THROW 50001, N'Feriados: @Feriados vazio ou invalido. Execute pelo tools/executar_consulta.ps1 (queries/) ou pelo Power BI (powerbi/*.m).', 1;
+END;
+IF EXISTS (
+    SELECT 1
+    FROM #PBI_FeriadosEntrada AS f
+    WHERE f.data IS NULL
+       OR NOT (   (LEN(f.data) = 10 AND f.data LIKE N'[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]' AND TRY_CONVERT(date, f.data, 23) IS NOT NULL)
+               OR (LEN(f.data) = 5  AND f.data LIKE N'[0-9][0-9]-[0-9][0-9]' AND TRY_CONVERT(date, N'2000-' + f.data, 23) IS NOT NULL))
+)
+BEGIN
+    ;THROW 50002, N'Feriados: @Feriados tem data fora do formato AAAA-MM-DD ou MM-DD.', 1;
+END;
+
 IF OBJECT_ID('tempdb..#PBI_FeriadosFixos') IS NOT NULL DROP TABLE #PBI_FeriadosFixos;
 CREATE TABLE #PBI_FeriadosFixos (
     mes_dia   char(5)        NOT NULL PRIMARY KEY, -- MM-DD
     descricao nvarchar(200)  NOT NULL
 );
-
 INSERT INTO #PBI_FeriadosFixos (mes_dia, descricao)
-VALUES
-    ('01-01', N'Confraternização Universal'),
-    ('04-21', N'Tiradentes'),
-    ('05-01', N'Dia Mundial do Trabalho'),
-    ('09-07', N'Independência do Brasil'),
-    ('10-12', N'Nossa Senhora Aparecida'),
-    ('11-02', N'Finados'),
-    ('11-15', N'Proclamação da República'),
-    ('11-20', N'Dia Nacional de Zumbi e da Consciência Negra'),
-    ('12-25', N'Natal');
+SELECT f.data, MIN(COALESCE(NULLIF(f.descricao, N''), N'Feriado'))
+FROM #PBI_FeriadosEntrada AS f
+WHERE LEN(f.data) = 5
+GROUP BY f.data;
 
 IF OBJECT_ID('tempdb..#PBI_FeriadosPorData') IS NOT NULL DROP TABLE #PBI_FeriadosPorData;
 CREATE TABLE #PBI_FeriadosPorData (
     data      date           NOT NULL PRIMARY KEY,
     descricao nvarchar(200)  NOT NULL
 );
-
--- Pontos facultativos de 2025 no TCU que caem na janela de 12 ciclos.
--- 24/12 e 31/12 ja existiam (faltavam no lado FAIA).
--- Fonte: Portaria-TCU n. 10/2025 e alteracoes n. 157/2025 e n. 176/2025
--- (Boletim do TCU; autenticidade em www.tcu.gov.br/autenticidade, codigos
--- 77411949, 79190602 e 79506777). 27/10, 21/11 e 26/12 incluidos em 2026-09-18.
 INSERT INTO #PBI_FeriadosPorData (data, descricao)
-VALUES
-    ('2025-10-27', N'Dia do Servidor Público federal - ponto facultativo'),
-    ('2025-11-21', N'Ponto facultativo - sexta-feira após Consciência Negra'),
-    ('2025-12-24', N'Ponto facultativo - véspera do Natal'),
-    ('2025-12-26', N'Ponto facultativo - sexta-feira após o Natal'),
-    ('2025-12-31', N'Ponto facultativo - véspera da Confraternização Universal');
-
--- Feriados moveis/diferenciados de 2026.
-INSERT INTO #PBI_FeriadosPorData (data, descricao)
-VALUES
-    ('2026-04-03', N'Paixão de Cristo'),
-    ('2026-04-05', N'Páscoa');
-
--- Pontos facultativos de 2026 no TCU.
-INSERT INTO #PBI_FeriadosPorData (data, descricao)
-VALUES
-    ('2026-01-02', N'Ponto facultativo - emenda após Confraternização Universal'),
-    ('2026-02-16', N'Carnaval - ponto facultativo'),
-    ('2026-02-17', N'Carnaval - ponto facultativo'),
-    ('2026-02-18', N'Quarta-Feira de Cinzas - ponto facultativo'),
-    ('2026-04-02', N'Ponto facultativo - véspera da Paixão de Cristo'),
-    ('2026-04-20', N'Ponto facultativo - emenda antes de Tiradentes'),
-    ('2026-06-04', N'Corpus Christi - ponto facultativo'),
-    ('2026-06-05', N'Ponto facultativo - emenda após Corpus Christi'),
-    ('2026-06-29', N'Ponto facultativo - jogo da Seleção Brasileira na Copa do Mundo FIFA 2026'), -- Portaria-TCU n. 93/2026 (codigo 80587034), incluido em 2026-09-18
-    ('2026-10-28', N'Dia do Servidor Público federal - ponto facultativo'),
-    ('2026-12-24', N'Ponto facultativo - véspera do Natal'),
-    ('2026-12-31', N'Ponto facultativo - véspera da Confraternização Universal');
-
--- Pontos facultativos de 2027:
--- Nao cadastrar nada por enquanto. Quando houver definicao oficial, inserir aqui
--- com data completa no formato YYYY-MM-DD.
+SELECT CONVERT(date, f.data, 23), MIN(COALESCE(NULLIF(f.descricao, N''), N'Feriado'))
+FROM #PBI_FeriadosEntrada AS f
+WHERE LEN(f.data) = 10
+GROUP BY CONVERT(date, f.data, 23);
 
 --------------------------------------------------------------------------------
 -- [S.3] Pre-filtro por periodo de fechamento (compartilhado)

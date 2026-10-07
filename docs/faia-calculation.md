@@ -564,7 +564,10 @@ A diferença direta entre sexta 18:00 e segunda 10:00 seria bem maior, mas só a
 
 > **Correção (2026-07-29).** Esta seção afirmava que "não existe calendário de feriados na consulta". Isso **não é mais verdade** — e já não era desde 08/07/2026. O texto antigo ficou desatualizado em relação ao código.
 
-A consulta **tem** calendário de feriados. Duas tabelas cuidam disso:
+A consulta **tem** calendário de feriados. Desde 2026-10-07 as datas não ficam
+no SQL: vêm do arquivo de feriados (linhas de escopo `TODOS` ou `A2B`), pelo
+parâmetro `@Feriados` ([feriados.md](feriados.md)). O bloco de feriados valida a
+lista e monta duas tabelas:
 
 | Tabela | Formato | Para que serve |
 |---|---|---|
@@ -584,8 +587,8 @@ O calendário afeta **somente** a contagem comercial (P3, P4 e P5). P1 e P2 são
 
 **Pendências reais do calendário:**
 
-- os pontos facultativos de **2027** ainda não foram cadastrados;
-- `2025-12-24` e `2025-12-31` estão no FARC Protect4, mas **não** nesta consulta do FAIA. A consulta consolidada do Power BI (ver seção 13) já usa um calendário único com as duas datas.
+- os pontos facultativos de **2027** ainda não foram cadastrados no arquivo;
+- até 2026-10-06 esta consulta não tinha `2025-12-24` e `2025-12-31`, presentes no FARC Protect4 e no painel. Com o arquivo de feriados, as três consultas leem a mesma lista da A2B e a diferença acabou: na janela de 24/11/2025 a 23/02/2026, 4 rotinas abertas nesses dias (1666461, 1666507, 1667392, 1667408) passaram a ter `Tempo Primeiro Atendimento` 0:00:00, o mesmo valor do painel; nenhuma meta mudou.
 
 [Voltar ao índice](#indice)
 

@@ -24912,3 +24912,52 @@ primeiro atendimento (1.235 chamados), já medida no FAIA. Nenhum outro status
 (`Homologada pelo cliente`, `Encerrado`, `Resolvido, avisar cliente`...), os de
 problema/mudança e os de RDM ficam fora pelo critério 6. Lista mantida: "Em
 andamento", "Aberto, aguarda atendimento", "Reaberto".
+
+## 76. 2026-10-07 — feriados fora do SQL (arquivo de feriados)
+
+Motivo: no ambiente controlado do Power BI, qualquer mudança no SQL do painel
+exige pedir nova versão à equipe responsável. Com a lista de feriados dentro
+do SQL, um ponto facultativo novo obrigava a republicar. Agora a lista fica
+num arquivo (`config/feriados.csv`; no painel, o mesmo arquivo no SharePoint),
+igual para Virtual, Decision e A2B, com a coluna `Escopo` para as diferenças
+entre os projetos. Desenho completo em `docs/feriados.md`.
+
+Arquitetura:
+
+- o SQL Server não lê o SharePoint nem o disco do usuário (a conta não tem
+  `ADMINISTER BULK OPERATIONS`, e *Ad Hoc Distributed Queries* está
+  desligado). Os feriados chegam pelo parâmetro `@Feriados` (JSON). O bloco de
+  feriados das três consultas (`[S.2]` no painel, `[FERIADOS E PONTOS
+  FACULTATIVOS]` no FAIA e `[SLA+]` no FARC individuais) valida e monta as
+  mesmas tabelas de antes (`#PBI_Feriados*` / `#Feriados*`);
+- painel: `powerbi/consulta_faia_farc_power_bi.m` lê o CSV do SharePoint,
+  valida, filtra `TODOS`/`A2B` e chama o SQL por `Value.NativeQuery` com o
+  parâmetro. O `.m` é gerado do `.sql` (`tools/gerar_powerbi_m.ps1`);
+- consultas individuais: `tools/executar_consulta.ps1` faz o mesmo a partir de
+  `config/feriados.csv` (ou gera uma cópia para o SSMS);
+- sem `@Feriados`, lista vazia, JSON ou data inválida: erro, nunca zero
+  feriados.
+
+Lista: os 9 fixos (`MM-DD`) e as 19 datas do painel viraram 28 linhas de
+escopo `TODOS`/`A2B`. A A2B continua sem as datas de 2025 anteriores a 27/10
+(escopo só `VIRTUAL;DECISION`); diferença mantida, registrada em
+`docs/feriados.md`. O FAIA individual, que não tinha 24/12 e 31/12/2025
+(divergência registrada nas seções 32.5 e 34.4), passou a ler a mesma lista do
+painel e do FARC individual.
+
+Regressão (mesmo instante, SQL antigo com a lista embutida x SQL novo com
+`@Feriados` do arquivo):
+
+| Consulta | Janela | Chamados | Diferenças |
+|---|---|---|---|
+| painel | 12 ciclos | 2.479 | 0 nas 35 colunas |
+| FAIA individual | 24/03 a 23/04/2026 | 234 | 0 nas 25 colunas |
+| FARC individual | 24/03 a 23/04/2026 | 234 | 0 nas 20 colunas |
+| FAIA individual | 24/11/2025 a 23/02/2026 | 659 | 4 chamados, só `Tempo Primeiro Atendimento` (esperado: 24/12 e 31/12/2025) |
+
+Os 4 (1666461, 1666507, 1667392, 1667408) são rotinas abertas em 24/12 ou
+31/12/2025, que passaram de 0:09–0:57 para 0:00:00 — exatamente o valor do
+painel publicado; nenhuma meta mudou. Teste de manutenção: com 2026-09-15
+incluído só no arquivo, 9 chamados mudam no painel (ex.: 1728602, Tempo de
+Atendimento 0:02:14 → 0:01:58); retirada a data, 0 diferenças; o SQL não mudou
+(mesmo SHA256).

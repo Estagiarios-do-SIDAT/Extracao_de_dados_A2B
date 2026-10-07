@@ -281,7 +281,7 @@ O desconto de feriados e pontos facultativos é aplicado nos três caminhos que 
 * `#TempoAtendimentoRotina`, usado nas rotinas;
 * `#TempoAtendimentoStatusLead`, usado no segundo cálculo dos chamados normais.
 
-Os feriados fixos ficam em `#FeriadosFixos`, no formato `MM-DD`. Feriados móveis e pontos facultativos ficam em `#FeriadosPorData`, com a data completa. A tabela contém os pontos facultativos de 24 e 31/12/2025, necessários ao ciclo Dezembro/Janeiro, e as datas cadastradas de 2026.
+Os feriados fixos ficam em `#FeriadosFixos`, no formato `MM-DD`. Feriados móveis e pontos facultativos ficam em `#FeriadosPorData`, com a data completa. As duas tabelas são montadas a partir do arquivo de feriados (linhas de escopo `TODOS` ou `A2B`), recebido no parâmetro `@Feriados`; as datas não ficam no SQL ([feriados.md](feriados.md)). A lista da A2B tem os pontos facultativos de 2025 a partir de 27/10 (inclusive 24 e 31/12/2025, do ciclo Dezembro/Janeiro) e as datas de 2026.
 
 O calendário afeta somente a contagem **comercial** de P3, P4 e P5. P1 e P2 continuam em tempo corrido e não descontam feriado.
 
@@ -370,7 +370,7 @@ cheio (`excedente / 3600`).
 |Ativo|`#StatusEvA2B`|"Em andamento", "Aberto, aguarda atendimento" e "Reaberto"|
 |Janelas|`#JanelasA2B`|todos os períodos sob a A2B (reposse)|
 |Piso/herdado|`#PisoInicial` / `#PecasAtivasA2B`|corta criação e "Em andamento" herdado|
-|Feriados|`#FeriadosFixos` / `#FeriadosPorData`|exclui feriados e facultativos dos cálculos comerciais P3/P4/P5|
+|Feriados|`#FeriadosFixos` / `#FeriadosPorData`, montadas de `@Feriados` (arquivo de feriados)|exclui feriados e facultativos dos cálculos comerciais P3/P4/P5|
 |Soma (interseção)|`#TempoAtivoJanelasA2B`|tempo ativo nas janelas A2B; corrida (P1/P2) ou comercial 08h-20h com calendário (P3/P4/P5)|
 |Soma (por status)|`#StatusEventosLead`→`#IntervalosLead`→`#TempoAtendimentoStatusLead`|"Em andamento" e "Reaberto" por mudança de status, recortados nas janelas A2B e no calendário comercial|
 |Resultado|`tempo\_atendimento\_seg`|rotina de Passagem de turno/Job Summary (abertura→fechamento) ou o maior entre os dois caminhos normais|

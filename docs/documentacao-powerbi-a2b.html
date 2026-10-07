@@ -4,7 +4,7 @@ Sem aspas duplas neste arquivo: pode ser colado dentro de uma medida DAX. -->
 <div style='font-family:Segoe UI,Arial,sans-serif;font-size:13px;line-height:1.5;color:#1f2328;background:#ffffff;padding:16px;max-width:900px'>
 
 <h1 style='font-size:20px;margin:0 0 4px 0;color:#0b3d6b'>Painel FAIA e FARC — A2B / Protect4</h1>
-<p style='margin:0 0 12px 0;color:#57606a'>Como a fonte de dados deste painel funciona e como mantê-la. Atualizado em 18/09/2026.</p>
+<p style='margin:0 0 12px 0;color:#57606a'>Como a fonte de dados deste painel funciona e como mantê-la. Atualizado em 07/10/2026.</p>
 
 <div style='background:#eef5fc;border-left:4px solid #0b5cad;padding:10px 12px;margin:0 0 16px 0'>
 <b>Em uma linha:</b> pela consulta consolidada do Power BI, o painel mostra os chamados da A2B/Protect4 <b>encerrados nos últimos 12 ciclos completos</b> — cada ciclo vai do dia 24 ao dia 23 do mês seguinte —, com FAIA e FARC na mesma linha. A janela avança sozinha a cada dia 24.
@@ -55,10 +55,10 @@ Sem aspas duplas neste arquivo: pode ser colado dentro de uma medida DAX. -->
 <p><b>Use as colunas terminadas em (s) em medidas.</b> As colunas HH:MM:SS são texto e servem só para leitura.</p>
 
 <h2 style='font-size:16px;color:#0b3d6b;border-bottom:1px solid #d0d7de;padding-bottom:4px'>7. Manutenção no Power Query</h2>
-<p><b>Onde fica o SQL:</b> Página Inicial › <b>Transformar dados</b> › selecione a consulta da A2B › em <b>Etapas aplicadas</b>, clique na <b>engrenagem</b> da etapa <b>Fonte</b> › <b>Opções avançadas</b> › campo <b>Instrução SQL</b>. Depois de editar: <b>OK</b> › <b>Fechar e aplicar</b>, e aprove a <b>consulta nativa</b> quando o Power BI pedir.</p>
+<p><b>Onde fica o SQL:</b> Página Inicial › <b>Transformar dados</b> › selecione a consulta da A2B › <b>Editor Avançado</b>: o SQL está no texto <b>SqlTexto</b>. Depois de editar: <b>Concluído</b> › <b>Fechar e aplicar</b>, e aprove a <b>consulta nativa</b> quando o Power BI pedir. Os feriados <b>não</b> ficam no SQL.</p>
 
 <h3 style='font-size:14px;margin:10px 0 4px 0'>Aumentar ou reduzir a quantidade de ciclos</h3>
-<p>A primeira instrução do SQL, no topo do campo, é:</p>
+<p>A primeira instrução do SQL, no início de SqlTexto, é:</p>
 <p style='font-family:Consolas,monospace;background:#f6f8fa;border:1px solid #d0d7de;padding:6px 8px'>DECLARE @PBI_QuantidadeCiclos int = 12;</p>
 <table style='border-collapse:collapse;margin:6px 0 10px 0'>
 <tr style='background:#f6f8fa'><th style='text-align:left;border:1px solid #d0d7de;padding:4px 10px'>Cobertura</th><th style='text-align:left;border:1px solid #d0d7de;padding:4px 10px'>Troque o número para</th></tr>
@@ -69,17 +69,17 @@ Sem aspas duplas neste arquivo: pode ser colado dentro de uma medida DAX. -->
 <p>É o <b>único</b> número que muda; a regra do ciclo, do dia 24 até o final do dia 23 do mês seguinte, não depende dele.</p>
 
 <h3 style='font-size:14px;margin:10px 0 4px 0'>Atualizar feriados e pontos facultativos</h3>
-<p>Ficam dentro do SQL, no bloco <b>[S.2] Feriados e pontos facultativos</b>, e valem para FAIA e FARC:</p>
+<p>Ficam no <b>arquivo de feriados</b> (feriados.csv), no SharePoint, e <b>não no SQL</b>. O painel lê o arquivo a cada atualização; a lista vale para FAIA e FARC. Colunas: <b>Data</b>, <b>Descricao</b>, <b>Escopo</b> (TODOS ou A2B valem para a A2B):</p>
 <ul style='margin-top:4px'>
-<li><b>#PBI_FeriadosFixos</b> — mesmo dia todo ano, formato <b>'MM-DD'</b>. Ex.: ('12-25', N'Natal'),</li>
-<li><b>#PBI_FeriadosPorData</b> — feriados móveis e pontos facultativos do TCU, formato <b>'AAAA-MM-DD'</b>. Ex.: ('2026-06-05', N'Ponto facultativo - emenda após Corpus Christi'),</li>
+<li><b>MM-DD</b> — mesmo dia todo ano. Ex.: 12-25,Natal,TODOS</li>
+<li><b>AAAA-MM-DD</b> — feriados móveis e pontos facultativos do TCU. Ex.: 2026-06-05,Ponto facultativo - emenda após Corpus Christi,TODOS</li>
 </ul>
 <p><b>Fonte obrigatória:</b> somente a portaria anual do TCU que define feriados e pontos facultativos do ano, publicada no Boletim do TCU, <b>e todas as portarias que a alterarem</b>. Consulte em pesquisa.apps.tcu.gov.br, base Normas. Não use calendário civil genérico nem de outro órgão.</p>
 <ol style='margin-top:4px'>
-<li>Edite o arquivo <b>powerbi/consulta_faia_farc_power_bi.sql</b> num editor e procure <b>[S.2]</b>: adicione, corrija ou apague a linha. A última linha de cada lista termina em ponto e vírgula, não em vírgula. Não cadastre sábado nem domingo.</li>
-<li>As consultas de referência (<b>queries/</b>, tabelas #FeriadosFixos e #FeriadosPorData) têm listas próprias e precisam ficar iguais à do painel.</li>
-<li>Copie o arquivo do painel <b>inteiro</b> e cole no campo <b>Instrução SQL</b> da etapa Fonte.</li>
-<li>OK › Fechar e aplicar › aprove a consulta nativa › <b>Atualizar</b>.</li>
+<li>Abra o <b>feriados.csv</b> no SharePoint e adicione, corrija ou apague a linha. Não cadastre sábado nem domingo.</li>
+<li>Salve. A próxima atualização do painel já usa a lista nova: não é preciso mudar o SQL nem republicar o relatório.</li>
+<li>Mantenha igual a cópia config/feriados.csv dos repositórios da Virtual, da Decision e da A2B, usada pelas consultas de referência.</li>
+<li>Data inválida, escopo desconhecido ou arquivo inacessível <b>falham a atualização</b> com mensagem; o painel nunca é calculado sem feriados.</li>
 </ol>
 <p><b>Efeito:</b> o dia cadastrado deixa de contar como tempo <b>comercial</b> (P3 a P5). P1 e P2 não mudam. Os valores só mudam depois de atualizar, e podem mudar para chamados de ciclos já carregados. Incluir uma data <b>muda resultado</b>: na A2B, valide antes de publicar.</p>
 
@@ -99,7 +99,7 @@ Sem aspas duplas neste arquivo: pode ser colado dentro de uma medida DAX. -->
 </div>
 <ul style='margin-top:4px'>
 <li><b>Eventos no mesmo segundo:</b> são ordenados por act_log.id, a sequência de gravação do log. Isso torna o FARC estável entre atualizações; não troque esse desempate sem nova validação.</li>
-<li>Uma data de feriado <b>repetida</b> faz a atualização falhar com <i>Violation of PRIMARY KEY constraint</i>; a mensagem cita a data.</li>
+<li>O <b>link do arquivo de feriados</b> fica no início da consulta M (UrlArquivoFeriados). Se o arquivo mudar de lugar no SharePoint, troque o link ali; o conteúdo do arquivo se edita direto no SharePoint.</li>
 <li>A consulta fica incorporada ao relatório: a alteração vale na próxima atualização. Há um repositório interno, de versionamento e manutenção técnica, mantido pela equipe responsável.</li>
 </ul>
 

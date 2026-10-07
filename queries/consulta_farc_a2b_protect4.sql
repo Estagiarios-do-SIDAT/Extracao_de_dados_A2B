@@ -127,59 +127,69 @@ VALUES
     (4, 240 * 60,       'COMERCIAL',  36 * 60 * 60,       'COMERCIAL'),
     (5, 720 * 60,       'COMERCIAL', 360 * 60 * 60,       'COMERCIAL');
 
+-- FERIADOS-ESCOPO: A2B
 --------------------------------------------------------------------------------
 -- [SLA+] Feriados e pontos facultativos (para o recorte comercial P3/P4/P5)
 --
--- O calculo comercial (08:00-20:00 seg-sex) desconta estes dias, alem do fim de
--- semana. So afeta severidades comerciais; corrido (P1/P2) ignora feriado.
+-- A lista de feriados NAO fica mais neste arquivo. Ela vem do arquivo de
+-- feriados (config/feriados.csv; no Power BI, a copia no SharePoint), so com as
+-- linhas do escopo declarado em "FERIADOS-ESCOPO", pelo parametro @Feriados
+-- (JSON):
+--   [{"data":"12-25","descricao":"Natal"},{"data":"2026-04-03","descricao":"..."}]
+--   MM-DD      = feriado fixo, vale todo ano;
+--   AAAA-MM-DD = data unica (feriado movel ou ponto facultativo).
+-- Quem preenche @Feriados: tools/executar_consulta.ps1 (consultas de queries/)
+-- e o codigo M de powerbi/*.m (Power BI). Sem @Feriados a consulta nem compila;
+-- lista vazia, JSON ou data invalida param com erro: nunca se calcula com zero
+-- feriados. Data repetida entra uma vez.
+--
+-- Regra de contagem (inalterada):
+--   - CORRIDA: conta 24h, sem desconto de feriado/facultativo.
+--   - COMERCIAL: conta somente segunda a sexta, 08:00-20:00, zerando os dias
+--     listados como feriado/facultativo.
 --------------------------------------------------------------------------------
+IF OBJECT_ID('tempdb..#FeriadosEntrada') IS NOT NULL DROP TABLE #FeriadosEntrada;
+CREATE TABLE #FeriadosEntrada (data nvarchar(100) NULL, descricao nvarchar(200) NULL);
+IF ISJSON(@Feriados) = 1
+    INSERT INTO #FeriadosEntrada (data, descricao)
+    SELECT LTRIM(RTRIM(j.data)), LTRIM(RTRIM(j.descricao))
+    FROM OPENJSON(@Feriados) WITH (data nvarchar(100) '$.data', descricao nvarchar(200) '$.descricao') AS j;
+IF ISNULL(ISJSON(@Feriados), 0) = 0 OR NOT EXISTS (SELECT 1 FROM #FeriadosEntrada)
+BEGIN
+    ;THROW 50001, N'Feriados: @Feriados vazio ou invalido. Execute pelo tools/executar_consulta.ps1 (queries/) ou pelo Power BI (powerbi/*.m).', 1;
+END;
+IF EXISTS (
+    SELECT 1
+    FROM #FeriadosEntrada AS f
+    WHERE f.data IS NULL
+       OR NOT (   (LEN(f.data) = 10 AND f.data LIKE N'[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]' AND TRY_CONVERT(date, f.data, 23) IS NOT NULL)
+               OR (LEN(f.data) = 5  AND f.data LIKE N'[0-9][0-9]-[0-9][0-9]' AND TRY_CONVERT(date, N'2000-' + f.data, 23) IS NOT NULL))
+)
+BEGIN
+    ;THROW 50002, N'Feriados: @Feriados tem data fora do formato AAAA-MM-DD ou MM-DD.', 1;
+END;
+
 IF OBJECT_ID('tempdb..#FeriadosFixos') IS NOT NULL DROP TABLE #FeriadosFixos;
-CREATE TABLE #FeriadosFixos (mes_dia char(5) NOT NULL PRIMARY KEY, descricao nvarchar(200) NOT NULL);
+CREATE TABLE #FeriadosFixos (
+    mes_dia   char(5)        NOT NULL PRIMARY KEY, -- MM-DD
+    descricao nvarchar(200)  NOT NULL
+);
 INSERT INTO #FeriadosFixos (mes_dia, descricao)
-VALUES
-    ('01-01', N'Confraternizacao Universal'),
-    ('04-21', N'Tiradentes'),
-    ('05-01', N'Dia Mundial do Trabalho'),
-    ('09-07', N'Independencia do Brasil'),
-    ('10-12', N'Nossa Senhora Aparecida'),
-    ('11-02', N'Finados'),
-    ('11-15', N'Proclamacao da Republica'),
-    ('11-20', N'Dia Nacional de Zumbi e da Consciencia Negra'),
-    ('12-25', N'Natal');
+SELECT f.data, MIN(COALESCE(NULLIF(f.descricao, N''), N'Feriado'))
+FROM #FeriadosEntrada AS f
+WHERE LEN(f.data) = 5
+GROUP BY f.data;
 
 IF OBJECT_ID('tempdb..#FeriadosPorData') IS NOT NULL DROP TABLE #FeriadosPorData;
-CREATE TABLE #FeriadosPorData (data date NOT NULL PRIMARY KEY, descricao nvarchar(200) NOT NULL);
--- Pontos facultativos de 2025 no TCU (24/12 e 31/12 ja existiam).
--- Fonte: Portaria-TCU n. 10/2025 e alteracoes n. 157/2025 e n. 176/2025
--- (Boletim do TCU; autenticidade em www.tcu.gov.br/autenticidade, codigos
--- 77411949, 79190602 e 79506777). 27/10, 21/11 e 26/12 incluidos em 2026-09-18.
+CREATE TABLE #FeriadosPorData (
+    data      date           NOT NULL PRIMARY KEY,
+    descricao nvarchar(200)  NOT NULL
+);
 INSERT INTO #FeriadosPorData (data, descricao)
-VALUES
-    ('2025-10-27', N'Dia do Servidor Publico federal - ponto facultativo'),
-    ('2025-11-21', N'Ponto facultativo - sexta-feira apos Consciencia Negra'),
-    ('2025-12-24', N'Ponto facultativo - vespera do Natal'),
-    ('2025-12-26', N'Ponto facultativo - sexta-feira apos o Natal'),
-    ('2025-12-31', N'Ponto facultativo - vespera da Confraternizacao Universal');
--- Moveis/diferenciados de 2026:
-INSERT INTO #FeriadosPorData (data, descricao)
-VALUES
-    ('2026-04-03', N'Paixao de Cristo'),
-    ('2026-04-05', N'Pascoa');
--- Pontos facultativos de 2026 no TCU:
-INSERT INTO #FeriadosPorData (data, descricao)
-VALUES
-    ('2026-01-02', N'Ponto facultativo - emenda apos Confraternizacao Universal'),
-    ('2026-02-16', N'Carnaval - ponto facultativo'),
-    ('2026-02-17', N'Carnaval - ponto facultativo'),
-    ('2026-02-18', N'Quarta-Feira de Cinzas - ponto facultativo'),
-    ('2026-04-02', N'Ponto facultativo - vespera da Paixao de Cristo'),
-    ('2026-04-20', N'Ponto facultativo - emenda antes de Tiradentes'),
-    ('2026-06-04', N'Corpus Christi - ponto facultativo'),
-    ('2026-06-05', N'Ponto facultativo - emenda apos Corpus Christi'),
-    ('2026-06-29', N'Ponto facultativo - jogo da Selecao Brasileira na Copa do Mundo FIFA 2026'), -- Portaria-TCU n. 93/2026 (codigo 80587034), incluido em 2026-09-18
-    ('2026-10-28', N'Dia do Servidor Publico federal - ponto facultativo'),
-    ('2026-12-24', N'Ponto facultativo - vespera do Natal'),
-    ('2026-12-31', N'Ponto facultativo - vespera da Confraternizacao Universal');
+SELECT CONVERT(date, f.data, 23), MIN(COALESCE(NULLIF(f.descricao, N''), N'Feriado'))
+FROM #FeriadosEntrada AS f
+WHERE LEN(f.data) = 10
+GROUP BY CONVERT(date, f.data, 23);
 
 --------------------------------------------------------------------------------
 -- [0] Membros do grupo do fornecedor

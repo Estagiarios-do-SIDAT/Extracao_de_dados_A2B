@@ -90,8 +90,27 @@ Ela:
 docs/faia-calculation.md             como o FAIA é calculado
 docs/farc-calculation.md             como o FARC é calculado
 docs/powerbi-query.md                a consulta do painel: período, manutenção de ciclos e feriados, colunas
+docs/feriados.md                     o arquivo de feriados (igual nos três repositórios)
 docs/documentacao-powerbi-a2b.html   a mesma documentação do painel, para o visual HTML Content
 ```
+
+**Feriados — `config/`, `tools/` e `powerbi/*.m`.** Os feriados e pontos
+facultativos não ficam mais nos SQLs. Ficam no arquivo de feriados:
+`config/feriados.csv` (cópia versionada, igual nos repositórios da Virtual, da
+Decision e da A2B) e o mesmo arquivo no SharePoint, lido pelo painel a cada
+atualização. Para incluir um feriado, basta editar o arquivo no SharePoint e
+salvar: não se muda o SQL nem se republica o relatório.
+
+```text
+config/feriados.csv                  feriados e pontos facultativos (Data, Descricao, Escopo)
+powerbi/consulta_faia_farc_power_bi.m consulta do painel (Power Query M): feriados do SharePoint + SQL
+tools/executar_consulta.ps1          executa queries/ com os feriados do arquivo
+tools/gerar_powerbi_m.ps1            gera powerbi/*.m a partir do .sql
+tools/verificar_feriados.ps1         valida o arquivo e a sincronia dos repositórios
+tools/feriados.ps1                   leitura e validação do arquivo (uso interno)
+```
+
+Detalhes em [`docs/feriados.md`](docs/feriados.md).
 
 [Documentação da consulta consolidada do Power BI](docs/powerbi-query.md)
 
@@ -115,7 +134,7 @@ Essas consultas não calculam FAIA nem FARC. Elas servem para investigar chamado
 1. Abra o arquivo SQL do fornecedor e indicador desejado.
 2. Ajuste o período de apuração nos parâmetros de data.
 3. Mantenha `@MostrarDiagnostico = 0` para uso normal no relatório.
-4. Execute a consulta na base `mdb`.
+4. Execute pelo script, que lê os feriados de `config/feriados.csv` e grava o resultado em CSV: `.\tools\executar_consulta.ps1 -Consulta .\queries\<consulta>.sql -Saida C:\temp\a2b` (`-GerarSql` gera uma cópia para o SSMS). Aberto direto no SSMS, sem o script, o arquivo falha com *Must declare the scalar variable "@Feriados"*.
 5. Exporte o resultado.
 6. Compare com os arquivos recebidos do fornecedor.
 7. Salve a análise na pasta `analysis/` correspondente.
@@ -138,7 +157,7 @@ DECLARE @MostrarDiagnostico bit = 0;
 **Consulta do painel** (`powerbi/`):
 
 - `@PBI_QuantidadeCiclos` — quantidade de ciclos completos, padrão `12`. Cada ciclo começa às 00:00:00 do dia 24 e termina ao final do dia 23 do mês seguinte. É o único parâmetro de período, e vale apenas para esta consulta: as individuais usam `@InicioBrasil`/`@FimBrasil`.
-- Feriados: tabelas `#PBI_FeriadosFixos` (`'MM-DD'`) e `#PBI_FeriadosPorData` (`'AAAA-MM-DD'`), no bloco `[S.2]`. As consultas individuais têm listas próprias (`#FeriadosFixos`, `#FeriadosPorData`); toda data nova deve entrar nas três, e só com fonte oficial do TCU. Passo a passo em [`docs/powerbi-query.md`](docs/powerbi-query.md#13-manutenção-no-power-query).
+- Feriados: vêm do **arquivo de feriados** (linhas de escopo `TODOS` ou `A2B`), pelo parâmetro `@Feriados`, nas três consultas (painel e individuais); o bloco `[S.2]` só valida e monta `#PBI_FeriadosFixos` e `#PBI_FeriadosPorData`. Datas só com fonte oficial do TCU. Passo a passo em [`docs/feriados.md`](docs/feriados.md) e [`docs/powerbi-query.md`](docs/powerbi-query.md#13-manutenção-no-power-query).
 
 ## Fluxo de validação
 
