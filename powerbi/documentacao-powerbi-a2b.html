@@ -1,5 +1,5 @@
 <!-- Documentacao do painel FAIA/FARC da A2B/Protect4 para o visual HTML Content.
-Fonte oficial: docs/powerbi-query.md. Em caso de divergencia, vale ela.
+Fonte oficial: powerbi/powerbi-query.md. Em caso de divergencia, vale ela.
 Sem aspas duplas neste arquivo: pode ser colado dentro de uma medida DAX. -->
 <div style='font-family:Segoe UI,Arial,sans-serif;font-size:13px;line-height:1.5;color:#1f2328;background:#ffffff;padding:16px;max-width:900px'>
 
@@ -22,7 +22,7 @@ Sem aspas duplas neste arquivo: pode ser colado dentro de uma medida DAX. -->
 <p>Base <b>mdb</b> do CA Service Desk Manager, lida <b>somente para leitura</b>. O SQL roda no SQL Server; o Power BI apenas envia o texto e importa o resultado. Tabelas principais: call_req (o chamado), act_log (histórico de eventos), ca_contact (pessoas e grupos), cr_stat, pri e prob_ctg (dicionários de status, severidade e categoria).</p>
 
 <h2 style='font-size:16px;color:#0b3d6b;border-bottom:1px solid #d0d7de;padding-bottom:4px'>3. Relação com as consultas de referência</h2>
-<p>As referências técnicas de cada cálculo são as consultas individuais <b>queries/consulta_faia_a2b_protect4.sql</b> e <b>queries/consulta_farc_a2b_protect4.sql</b>. A consulta do painel, <b>powerbi/consulta_faia_farc_power_bi.sql</b>, usa os mesmos dois motores lado a lado e junta os resultados; <b>não reimplementa</b> nenhuma regra. As individuais têm <b>parametrização própria de período</b> e não usam a regra de 12 ciclos, que é exclusiva da consulta consolidada do Power BI. As diferenças são de período (automático no painel), de saída (um único resultado) e de calendário: o painel usa uma lista de feriados unificada para FAIA e FARC.</p>
+<p>As referências técnicas de cada cálculo são as consultas individuais <b>queries/consulta_faia_a2b_protect4.sql</b> e <b>queries/consulta_farc_a2b_protect4.sql</b>. A consulta do painel, <b>powerbi/consulta_faia_farc_power_bi.m</b> (que executa <b>queries/consulta_faia_farc_painel.sql</b>), usa os mesmos dois motores lado a lado e junta os resultados; <b>não reimplementa</b> nenhuma regra. As individuais têm <b>parametrização própria de período</b> e não usam a regra de 12 ciclos, que é exclusiva da consulta consolidada do Power BI. As diferenças são de período (automático no painel), de saída (um único resultado) e de calendário: o painel usa uma lista de feriados unificada para FAIA e FARC.</p>
 
 <h2 style='font-size:16px;color:#0b3d6b;border-bottom:1px solid #d0d7de;padding-bottom:4px'>4. Período da consulta do Power BI: últimos 12 ciclos (24 → 23)</h2>
 <p>Vale para a consulta consolidada usada pelo relatório. As consultas individuais de FAIA e FARC têm período próprio, informado no próprio arquivo.</p>
@@ -69,7 +69,7 @@ Sem aspas duplas neste arquivo: pode ser colado dentro de uma medida DAX. -->
 <p>É o <b>único</b> número que muda; a regra do ciclo, do dia 24 até o final do dia 23 do mês seguinte, não depende dele.</p>
 
 <h3 style='font-size:14px;margin:10px 0 4px 0'>Atualizar feriados e pontos facultativos</h3>
-<p>Ficam no <b>calendário</b> (feriados.txt), no SharePoint, e <b>não no SQL</b>. O painel lê o arquivo a cada atualização; a lista vale para FAIA e FARC. É o calendário do TCU, o mesmo da Virtual e da Decision. Texto simples, em seções, uma data por linha:</p>
+<p>Ficam no <b>calendário</b> (feriados.txt), no SharePoint, e <b>não no SQL</b>. O painel lê o arquivo a cada atualização; a lista vale para FAIA e FARC. É o calendário do TCU, o mesmo da Virtual TI e da Decision. Texto simples, em seções, uma data por linha:</p>
 <ul style='margin-top:4px'>
 <li><b>DD-MM</b>, na seção Feriados Fixos — feriados nacionais fixos; cadastrados uma vez, valem todo ano. Ex.: 25-12</li>
 <li><b>DD-MM-AAAA</b>, nas seções Feriados móveis/diferenciados e Pontos Facultativos — por ano, conforme a Portaria. Ex.: 05-06-2026</li>
@@ -78,7 +78,7 @@ Sem aspas duplas neste arquivo: pode ser colado dentro de uma medida DAX. -->
 <ol style='margin-top:4px'>
 <li>Abra o <b>feriados.txt</b> no SharePoint e adicione, corrija ou apague a data na seção certa. Não cadastre sábado nem domingo.</li>
 <li>Salve. A próxima atualização do painel já usa a lista nova: não é preciso mudar o SQL nem republicar o relatório.</li>
-<li>Mantenha igual a cópia docs/feriados.txt dos repositórios (Virtual, Decision, A2B e COI), usada pelas consultas de referência.</li>
+<li>Mantenha igual a cópia docs/feriados.txt dos repositórios (Virtual TI, Decision, A2B e COI), usada pelas consultas de referência.</li>
 <li>Data inválida, repetida ou fora do formato, ou arquivo inacessível <b>falham a atualização</b> com mensagem; o painel nunca é calculado sem feriados.</li>
 </ol>
 <p><b>Efeito:</b> o dia cadastrado deixa de contar como tempo <b>comercial</b> (P3 a P5). P1 e P2 não mudam. Os valores só mudam depois de atualizar, e podem mudar para chamados de ciclos já carregados. Incluir uma data <b>muda resultado</b>: na A2B, valide antes de publicar.</p>
@@ -99,7 +99,7 @@ Sem aspas duplas neste arquivo: pode ser colado dentro de uma medida DAX. -->
 </div>
 <ul style='margin-top:4px'>
 <li><b>Eventos no mesmo segundo:</b> são ordenados por act_log.id, a sequência de gravação do log. Isso torna o FARC estável entre atualizações; não troque esse desempate sem nova validação.</li>
-<li>O <b>link do arquivo de feriados</b> fica no início da consulta M (UrlArquivoFeriados). Se o arquivo mudar de lugar no SharePoint, troque o link ali; o conteúdo do arquivo se edita direto no SharePoint.</li>
+<li>O <b>link do arquivo de feriados</b> fica no início da consulta M, na variável <b>SharePointFeriadosUrl</b>: para trocar o endereço do SharePoint, altere apenas ela (link real ainda <b>pendente</b>); o conteúdo do arquivo se edita direto no SharePoint.</li>
 <li>A consulta fica incorporada ao relatório: a alteração vale na próxima atualização. Há um repositório interno, de versionamento e manutenção técnica, mantido pela equipe responsável.</li>
 </ul>
 

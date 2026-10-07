@@ -12,14 +12,16 @@ Este repositório atende **somente a A2B / Protect4**. COI e Decision têm repos
 .
 ├── queries/
 │   ├── consulta_faia_a2b_protect4.sql      referência técnica do FAIA
-│   └── consulta_farc_a2b_protect4.sql      referência técnica do FARC
+│   ├── consulta_farc_a2b_protect4.sql      referência técnica do FARC
+│   └── consulta_faia_farc_painel.sql       referência do painel: FAIA e FARC juntos, últimos 12 ciclos (fonte do .m)
 ├── powerbi/
-│   └── consulta_faia_farc_power_bi.sql     fonte do painel: FAIA e FARC, últimos 12 ciclos (24 → 23)
+│   ├── consulta_faia_farc_power_bi.m       A consulta do painel (Power Query M, única): feriados do SharePoint + SQL
+│   ├── powerbi-query.md                    documentação do painel: período, manutenção, colunas, SharePoint
+│   └── documentacao-powerbi-a2b.html       leitura dentro do painel (visual HTML Content)
 ├── docs/
 │   ├── faia-calculation.md                 como o FAIA é calculado
 │   ├── farc-calculation.md                 como o FARC é calculado
-│   ├── powerbi-query.md                    a consulta do painel: período, manutenção, colunas
-│   └── documentacao-powerbi-a2b.html       leitura dentro do painel (visual HTML Content)
+│   └── feriados.txt                        calendário de feriados e pontos facultativos (igual em todos os repositórios)
 ├── analysis/
 │   └── planilhas de comparação
 ├── project-context/
@@ -66,11 +68,14 @@ A Protect4 tem dois grupos de arquivos, com finalidades diferentes.
 | `queries/consulta_faia_a2b_protect4.sql` | Calcula o FAIA da A2B/Protect4 |
 | `queries/consulta_farc_a2b_protect4.sql` | Calcula o FARC da A2B/Protect4 |
 
-**`powerbi/` — consulta consolidada do painel.** Reúne os dois indicadores para consumo pelo Power BI.
+**Consulta do painel.** Reúne os dois indicadores para consumo pelo Power BI.
 
 | Arquivo | Finalidade |
 |---|---|
-| `powerbi/consulta_faia_farc_power_bi.sql` | FAIA e FARC juntos, para o painel |
+| `powerbi/consulta_faia_farc_power_bi.m` | **a consulta do Power BI** (a única; colada no Editor Avançado): lê o `feriados.txt` no SharePoint e executa o SQL abaixo |
+| `queries/consulta_faia_farc_painel.sql` | consulta de referência do painel: FAIA e FARC juntos. Fonte do `.m` (gerado por `tools/gerar_powerbi_m.ps1`) e usada em testes; não se cola no Power BI |
+
+Para trocar o endereço do SharePoint, altere apenas `SharePointFeriadosUrl`, no topo do `.m` (link real ainda **pendente**).
 
 Ela:
 
@@ -89,32 +94,31 @@ Ela:
 ```text
 docs/faia-calculation.md             como o FAIA é calculado
 docs/farc-calculation.md             como o FARC é calculado
-docs/powerbi-query.md                a consulta do painel: período, manutenção de ciclos e feriados, colunas
 docs/feriados.txt                    o calendário de feriados e pontos facultativos (igual em todos os repositórios)
-docs/feriados.md                     regras, formato e fontes do calendário (igual nos três repositórios)
-docs/documentacao-powerbi-a2b.html   a mesma documentação do painel, para o visual HTML Content
+powerbi/powerbi-query.md             a consulta do painel: período, manutenção de ciclos e feriados, colunas, SharePoint
+powerbi/documentacao-powerbi-a2b.html a mesma documentação do painel, para o visual HTML Content
 ```
 
 **Feriados — `docs/feriados.txt`, `tools/` e `powerbi/*.m`.** Os feriados e
 pontos facultativos não ficam mais nos SQLs. Ficam no calendário
 `docs/feriados.txt` (cópia versionada, igual em todos os repositórios) e no
 mesmo arquivo no SharePoint, lido pelo painel a cada atualização. É texto
-simples, em seções: feriados fixos como `DD-MM` e datas de um ano como
-`DD-MM-AAAA`. Para incluir um feriado, basta editar o arquivo no SharePoint e
+simples, em três seções: feriados fixos como `DD-MM` e datas de um ano como
+`DD-MM-AAAA` (as regras de preenchimento estão no próprio arquivo). Para incluir um feriado, basta editar o arquivo no SharePoint e
 salvar: não se muda o SQL nem se republica o relatório.
 
 ```text
 docs/feriados.txt                    calendário de feriados e pontos facultativos do TCU (DD-MM, DD-MM-AAAA)
 powerbi/consulta_faia_farc_power_bi.m consulta do painel (Power Query M): feriados do SharePoint + SQL
 tools/executar_consulta.ps1          executa queries/ com os feriados do arquivo
-tools/gerar_powerbi_m.ps1            gera powerbi/*.m a partir do .sql
+tools/gerar_powerbi_m.ps1            gera powerbi/*.m a partir do SQL de referência do painel
 tools/verificar_feriados.ps1         valida o arquivo e a sincronia dos repositórios
 tools/feriados.ps1                   leitura e validação do arquivo (uso interno)
 ```
 
-Detalhes em [`docs/feriados.md`](docs/feriados.md).
+SharePoint, privacidade e gateway em [`powerbi/powerbi-query.md`](powerbi/powerbi-query.md#14-feriados-e-sharepoint).
 
-[Documentação da consulta consolidada do Power BI](docs/powerbi-query.md)
+[Documentação da consulta do Power BI](powerbi/powerbi-query.md)
 
 As planilhas em `analysis/` guardam as comparações usadas na validação dos resultados.
 
@@ -159,7 +163,7 @@ DECLARE @MostrarDiagnostico bit = 0;
 **Consulta do painel** (`powerbi/`):
 
 - `@PBI_QuantidadeCiclos` — quantidade de ciclos completos, padrão `12`. Cada ciclo começa às 00:00:00 do dia 24 e termina ao final do dia 23 do mês seguinte. É o único parâmetro de período, e vale apenas para esta consulta: as individuais usam `@InicioBrasil`/`@FimBrasil`.
-- Feriados: vêm do **arquivo de feriados** (o calendário do TCU, o mesmo da Virtual e da Decision), pelo parâmetro `@Feriados`, nas três consultas (painel e individuais); o bloco `[S.2]` só valida e monta `#PBI_FeriadosFixos` e `#PBI_FeriadosPorData`. Datas só com fonte oficial do TCU. Passo a passo em [`docs/feriados.md`](docs/feriados.md) e [`docs/powerbi-query.md`](docs/powerbi-query.md#13-manutenção-no-power-query).
+- Feriados: vêm do **arquivo de feriados** (o calendário do TCU, o mesmo da Virtual TI e da Decision), pelo parâmetro `@Feriados`, nas três consultas (painel e individuais); o bloco `[S.2]` só valida e monta `#PBI_FeriadosFixos` e `#PBI_FeriadosPorData`. Datas só com fonte oficial do TCU. Regras de preenchimento em [`docs/feriados.txt`](docs/feriados.txt); passo a passo em [`powerbi/powerbi-query.md`](powerbi/powerbi-query.md#13-manutenção-no-power-query).
 
 ## Fluxo de validação
 

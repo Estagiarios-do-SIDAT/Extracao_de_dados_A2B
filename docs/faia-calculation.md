@@ -565,8 +565,8 @@ A diferença direta entre sexta 18:00 e segunda 10:00 seria bem maior, mas só a
 > **Correção (2026-07-29).** Esta seção afirmava que "não existe calendário de feriados na consulta". Isso **não é mais verdade** — e já não era desde 08/07/2026. O texto antigo ficou desatualizado em relação ao código.
 
 A consulta **tem** calendário de feriados. Desde 2026-10-07 as datas não ficam
-no SQL: vêm do arquivo de feriados (o calendário do TCU, o mesmo da Virtual e
-da Decision), pelo parâmetro `@Feriados` ([feriados.md](feriados.md)). O bloco de feriados valida a
+no SQL: vêm do arquivo de feriados (o calendário do TCU, o mesmo da Virtual TI e
+da Decision), pelo parâmetro `@Feriados` ([feriados.txt](feriados.txt)). O bloco de feriados valida a
 lista e monta duas tabelas:
 
 | Tabela | Formato | Para que serve |
@@ -959,7 +959,7 @@ Na semana, conta 11h na segunda (09:00 às 20:00) e 9h na terça (08:00 às 17:0
 Além desta consulta, existe uma **consulta consolidada** feita para alimentar o painel:
 
 ```text
-powerbi/consulta_faia_farc_power_bi.sql
+queries/consulta_faia_farc_painel.sql   (executada pela consulta do Power BI, powerbi/consulta_faia_farc_power_bi.m)
 ```
 
 O que muda entre as duas:
@@ -979,6 +979,6 @@ Pontos importantes:
 - as colunas de cada indicador continuam separadas: o FAIA tem as suas, o FARC tem as suas. **FAIA e FARC continuam sendo indicadores diferentes** e nenhum passou a usar regra do outro;
 - ela devolve **uma linha por chamado**.
 
-A explicação das colunas do painel está em [powerbi-query.md](powerbi-query.md).
+A explicação das colunas do painel está em [powerbi-query.md](../powerbi/powerbi-query.md).
 
 [Voltar ao índice](#indice)

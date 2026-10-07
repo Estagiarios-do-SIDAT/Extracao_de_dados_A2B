@@ -1,32 +1,40 @@
 <#
 .SYNOPSIS
-    Gera o codigo Power Query M (powerbi/*.m) a partir da consulta SQL do Power BI.
+    Gera a consulta do Power BI (powerbi/*.m, Power Query M) a partir do SQL-fonte.
 
 .DESCRIPTION
-    O calculo de horas comerciais acontece no SQL Server, que nao le o
-    SharePoint. O codigo M gerado:
-      1. le o arquivo de feriados (feriados.txt) no SharePoint (Web.Contents,
-         URL direta);
-      2. valida cada linha com as regras de tools/feriados.ps1 (DD-MM nos
-         Feriados Fixos, DD-MM-AAAA nas secoes com ano; titulos e paragrafos
-         ignorados) e falha a atualizacao com mensagem clara em qualquer
-         problema;
+    O .m e a UNICA consulta do Power BI de cada relatorio: e ele que se cola no
+    Editor Avancado. O SQL-fonte (em queries/) e a consulta de referencia,
+    usada tambem para testes; ele nao se cola no Power BI.
+
+    O calculo do Horario TCU acontece no SQL Server, que nao le o SharePoint.
+    O codigo M gerado:
+      1. le o calendario feriados.txt no SharePoint (Web.Contents, URL direta,
+         configurada so em SharePointFeriadosUrl, no topo do .m);
+      2. valida cada linha com as regras de tools/feriados.ps1 e falha a
+         atualizacao com mensagem clara em qualquer problema;
       3. envia a lista ao SQL como PARAMETRO @Feriados (JSON), sem concatenar
          texto do arquivo no SQL;
       4. executa a consulta (Value.NativeQuery) e devolve o mesmo resultado.
 
-    Estrutura: tudo fica dentro de um UNICO passo ("Fonte"). A primeira versao
-    tinha um passo por etapa, e o firewall de privacidade do Power Query
-    (Formula.Firewall) recusava a combinacao do SharePoint com o SQL mesmo com
-    as duas fontes como Organizacional. Num passo so, as duas fontes ficam na
-    mesma particao e o firewall apenas confere se os niveis de privacidade sao
-    compativeis (Organizacional + Organizacional). Validado com o motor do
-    Power BI Desktop, sem ignorar niveis de privacidade.
+    Periodo: se o SQL-fonte tiver um bloco entre "-- >>> PERIODO POWER BI" e
+    "-- <<< PERIODO POWER BI" (comentado com /* */), o gerador troca por ele o
+    bloco entre "-- >>> PERIODO REFERENCIA" e "-- <<< PERIODO REFERENCIA".
+    Assim a consulta de referencia e a do Power BI saem do mesmo arquivo e so o
+    periodo muda. Sem esses marcadores, o SQL-fonte entra inteiro.
 
-    O SQL entra no M como texto literal. Altere sempre o .sql e gere de novo.
+    Estrutura: a leitura do SharePoint e o SQL ficam num UNICO passo ("Fonte").
+    A primeira versao tinha um passo por etapa, e o firewall de privacidade do
+    Power Query (Formula.Firewall) recusava a combinacao do SharePoint com o
+    SQL mesmo com as duas fontes como Organizacional. Num passo so, as duas
+    fontes ficam na mesma particao. SharePointFeriadosUrl e so um texto e fica
+    num passo proprio, no topo, para ser facil de trocar.
+
+    O SQL entra no M como texto literal. Altere sempre o SQL-fonte e gere de
+    novo; tools/verificar_feriados.ps1 acusa .m desatualizado.
 
 .EXAMPLE
-    .\tools\gerar_powerbi_m.ps1 -Consulta .\powerbi\consulta_faia_farc_power_bi.sql
+    .\tools\gerar_powerbi_m.ps1 -Consulta .\queries\consulta_faia_farc_painel.sql -Saida .\powerbi\consulta_faia_farc_power_bi.m
 #>
 param(
     [Parameter(Mandatory = $true)][string]$Consulta,
@@ -36,26 +44,39 @@ param(
 $ErrorActionPreference = 'Stop'
 
 $caminho = (Resolve-Path -LiteralPath $Consulta).Path
+$repo = Split-Path -Parent (Split-Path -Parent $caminho)
+$fonteRel = $caminho.Substring($repo.Length + 1).Replace('\', '/')
+if (-not $Saida -and -not $SomenteTexto) { throw 'Informe -Saida (ex.: .\powerbi\<consulta>_power_bi.m).' }
 $sql = [System.IO.File]::ReadAllText($caminho, [System.Text.Encoding]::UTF8).Replace("`r`n", "`n")
-if (-not $Saida) { $Saida = [System.IO.Path]::ChangeExtension($caminho, '.m') }
-$nomeSql = [System.IO.Path]::GetFileName($caminho)
+if ($Saida -and -not [System.IO.Path]::IsPathRooted($Saida)) { $Saida = [System.IO.Path]::GetFullPath((Join-Path (Get-Location).Path $Saida)) }
+
+# Periodo do Power BI (ver .DESCRIPTION).
+$blocoPbi = [regex]::Match($sql, '(?ms)^-- >>> PERIODO POWER BI.*?^-- <<< PERIODO POWER BI[^\n]*\n')
+if ($blocoPbi.Success) {
+    $blocoRef = [regex]::Match($sql, '(?ms)^-- >>> PERIODO REFERENCIA.*?^-- <<< PERIODO REFERENCIA[^\n]*\n')
+    if (-not $blocoRef.Success) { throw "SQL-fonte com bloco PERIODO POWER BI e sem bloco PERIODO REFERENCIA: $caminho" }
+    $pbi = (@($blocoPbi.Value -split "`n" | Where-Object { $_.Trim() -ne '/*' -and $_.Trim() -ne '*/' })) -join "`n"
+    $sql = $sql.Replace($blocoRef.Value, '').Replace($blocoPbi.Value, $pbi)
+}
 
 # Literal M: aspas duplas viram "" e "#(" vira "#(#)(" (inicio de escape no M).
 $literal = $sql.Replace('"', '""').Replace('#(', '#(#)(')
 
 $m = @"
 // =============================================================================
-// Power BI - consulta $nomeSql com feriados do SharePoint
+// Power BI - consulta do relatorio (unica), com feriados do SharePoint
+// Fonte SQL: $fonteRel
 //
-// GERADO por tools/gerar_powerbi_m.ps1 a partir de powerbi/$nomeSql.
-// Nao edite este arquivo: altere o .sql e gere de novo.
+// GERADO por tools/gerar_powerbi_m.ps1 a partir de $fonteRel.
+// Nao edite este arquivo: altere o SQL-fonte e gere de novo.
 //
 // Uso (uma vez): Power Query > Pagina Inicial > Nova Fonte > Consulta Nula >
 // Editor Avancado > colar este arquivo inteiro. Depois, preencher
-// UrlArquivoFeriados com o link direto do arquivo feriados.txt no SharePoint.
+// SharePointFeriadosUrl (logo abaixo de "let") com o link direto do arquivo
+// feriados.txt no SharePoint.
 //
 // Feriados: a cada atualizacao o arquivo e lido de novo. Ele e o mesmo para
-// Virtual, Decision e A2B (calendario do TCU). Qualquer problema (link nao
+// Virtual TI, Decision e A2B (calendario do TCU). Qualquer problema (link nao
 // preenchido, arquivo inacessivel, codificacao invalida, data invalida ou
 // repetida, secao desconhecida, arquivo sem datas) FALHA a atualizacao com
 // mensagem; o relatorio nunca e calculado com zero feriados.
@@ -65,14 +86,18 @@ $m = @"
 // mesma particao; nao separe os passos, senao volta o erro Formula.Firewall.
 // =============================================================================
 let
+    // ============================================================================
+    // CONFIGURACAO - SHAREPOINT
+    // Altere SOMENTE esta URL quando o arquivo feriados.txt mudar de local.
+    // Link direto do arquivo, por exemplo:
+    //   https://<empresa>.sharepoint.com/sites/<site>/Shared%20Documents/<pasta>/feriados.txt
+    // ============================================================================
+    SharePointFeriadosUrl = "INSERIR_URL_DO_ARQUIVO_FERIADOS_NO_SHAREPOINT",
+
     Fonte =
         let
-            // ---- CONFIGURACAO (preencher uma unica vez) ---------------------
-            // Link direto do arquivo, por exemplo:
-            //   https://<empresa>.sharepoint.com/sites/<site>/Shared%20Documents/<pasta>/feriados.txt
             // Servidor e banco da consulta SQL: os mesmos da fonte atual do
             // relatorio (conferir no PBIX; estao fixos no fim, em Sql.Database).
-            UrlArquivoFeriados = "INSERIR_URL_DO_ARQUIVO_FERIADOS_NO_SHAREPOINT",
 
             // ---- Leitura do arquivo de feriados (feriados.txt) -------------
             // Mesmas regras de tools/feriados.ps1: so contam linhas que tem
@@ -81,9 +106,9 @@ let
             // ignorados. Saida para o SQL: MM-DD e AAAA-MM-DD.
             Falha = (mensagem as text) => error Error.Record("Feriados", mensagem),
             Conteudo =
-                if Text.Contains(UrlArquivoFeriados, "INSERIR_") then
-                    Falha("Preencha UrlArquivoFeriados com o link do arquivo feriados.txt no SharePoint.")
-                else Binary.Buffer(Web.Contents(UrlArquivoFeriados)),
+                if Text.Contains(SharePointFeriadosUrl, "INSERIR_") then
+                    Falha("Preencha SharePointFeriadosUrl com o link do arquivo feriados.txt no SharePoint.")
+                else Binary.Buffer(Web.Contents(SharePointFeriadosUrl)),
             Utf16 = List.Contains({#binary({255, 254}), #binary({254, 255})}, Binary.Range(Conteudo, 0, 2)),
             TextoBruto =
                 if Utf16 then Falha("Arquivo de feriados com codificacao invalida (salve em UTF-8, nao UTF-16).")
@@ -100,9 +125,7 @@ let
             NomeSecao = (s as text) as text =>
                 Text.Combine(List.Select(Text.SplitAny(SemAcento(Text.Lower(Text.Trim(s))), " #(tab)"), each _ <> ""), " "),
             Secoes = [
-                #"regras" = null,
                 #"feriados fixos" = "Feriado fixo",
-                #"feriados por data" = "Feriado por data",
                 #"feriados moveis/diferenciados" = "Feriado m#(00F3)vel/diferenciado",
                 #"pontos facultativos" = "Ponto facultativo"
             ],
@@ -135,7 +158,7 @@ let
                             if d = null then Erro(e, n, "data invalida '" & t & "' (use DD-MM)")
                             else Item(e, n, t, Dois(Date.Month(d)) & "-" & Dois(Date.Day(d))))
                     else if EhDatada(t) then
-                        (if e[secao] = null or e[secao] = "regras" or e[secao] = "feriados fixos" then
+                        (if e[secao] = null or e[secao] = "feriados fixos" then
                             Erro(e, n, "data '" & t & "' fora das secoes de datas com ano")
                          else
                             let d = try #date(Number.From(Text.End(t, 4)), Number.From(Text.Middle(t, 3, 2)), Number.From(Text.Start(t, 2))) otherwise null in
@@ -151,7 +174,7 @@ let
             ParaSql = List.Transform(Validas, each [data = _[data], descricao = _[descricao]]),
             FeriadosJson = Text.FromBinary(Json.FromValue(ParaSql), TextEncoding.Utf8),
 
-            // ---- Consulta SQL (powerbi/$nomeSql) ----------------------------
+            // ---- Consulta SQL ($fonteRel) ----------------------------
             SqlTexto = "$literal",
             Resultado = Value.NativeQuery(Sql.Database("bdados-14r", "mdb"), SqlTexto, [Feriados = FeriadosJson], [EnableFolding = false])
         in

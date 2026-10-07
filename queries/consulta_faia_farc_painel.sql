@@ -2,6 +2,12 @@
 -- PARAMETRO EDITAVEL  (no Power BI: Editor Avancado da consulta, no inicio do
 -- texto SqlTexto; no repositorio: altere aqui e gere de novo powerbi/consulta_faia_farc_power_bi.m)
 --
+-- Este arquivo e a CONSULTA DE REFERENCIA DO PAINEL: a fonte do .m e a copia
+-- executavel dele para testes e regressao. Ele nao se cola no Power BI; a
+-- unica consulta do Power BI e powerbi/consulta_faia_farc_power_bi.m, gerada
+-- por tools/gerar_powerbi_m.ps1 -Consulta queries/consulta_faia_farc_painel.sql
+-- -Saida powerbi/consulta_faia_farc_power_bi.m.
+--
 --   Quantidade de ciclos COMPLETOS carregados. Padrao: 12.
 --   Cada ciclo vai do dia 24 de um mes ate o dia 23 do mes seguinte (regra da
 --   A2B/Protect4). O ciclo em andamento nunca entra.
@@ -44,7 +50,7 @@ Saida:
 Referencias tecnicas dos calculos (nao substituidas por este arquivo):
   - queries/consulta_faia_a2b_protect4.sql
   - queries/consulta_farc_a2b_protect4.sql
-  - docs/powerbi-query.md
+  - powerbi/powerbi-query.md
 
 A consulta nao cria view, tabela ou procedure permanente. Usa apenas tabelas
 temporarias da sessao, todas com o prefixo #PBI_, #FAIA_ ou #FARC_, que nao
@@ -222,7 +228,7 @@ VALUES
 --
 -- A lista de feriados NAO fica mais neste arquivo. Ela vem do arquivo de
 -- feriados (docs/feriados.txt; no Power BI, a copia no SharePoint), o mesmo
--- calendario do TCU para Virtual, Decision e A2B, pelo parametro @Feriados
+-- calendario do TCU para Virtual TI, Decision e A2B, pelo parametro @Feriados
 -- (JSON):
 --   [{"data":"12-25","descricao":"Natal"},{"data":"2026-04-03","descricao":"..."}]
 --   MM-DD      = feriado fixo, vale todo ano;

@@ -1,12 +1,14 @@
 # Leitura e validacao do arquivo de feriados (docs/feriados.txt).
 #
 # Usado por executar_consulta.ps1, gerar_powerbi_m.ps1 e verificar_feriados.ps1.
-# Um unico calendario (o do TCU) para Virtual, Decision e A2B. As regras sao as
+# Um unico calendario (o do TCU) para Virtual TI, Decision e A2B. As regras sao as
 # mesmas do codigo M do Power BI (powerbi/*.m):
-#   - texto UTF-8; so contam as linhas que tem APENAS uma data:
+#   - texto UTF-8 com TRES secoes: "## Feriados Fixos",
+#     "## Feriados moveis/diferenciados" e "## Pontos Facultativos"; o texto
+#     antes da primeira secao e livre (explicacao);
+#   - so contam as linhas que tem APENAS uma data:
 #       DD-MM       feriado fixo (vale todo ano), na secao "## Feriados Fixos";
-#       DD-MM-AAAA  data de um ano, nas secoes "## Feriados Por Data",
-#                   "## Feriados moveis/diferenciados" ou "## Pontos Facultativos";
+#       DD-MM-AAAA  data de um ano, nas outras duas secoes;
 #     titulos, linhas vazias e paragrafos sao ignorados;
 #   - linha que parece data mas esta fora do formato (2026-04-03, 3-4-2026,
 #     03/04/2026), data inexistente (31-02-2026), data fora da secao certa,
@@ -19,9 +21,7 @@
 # Secoes aceitas (nome comparado sem acento e sem diferenca de maiusculas) e a
 # descricao enviada ao SQL para as datas de cada uma.
 $script:SecoesFeriados = [ordered]@{
-    'regras'                        = $null
     'feriados fixos'                = 'Feriado fixo'
-    'feriados por data'             = 'Feriado por data'
     'feriados moveis/diferenciados' = ('Feriado m{0}vel/diferenciado' -f [char]0x00F3)
     'pontos facultativos'           = 'Ponto facultativo'
 }
@@ -75,7 +75,7 @@ function Read-ArquivoFeriados {
             if (-not [datetime]::TryParseExact("$t-2000", 'dd-MM-yyyy', $inv, $estilo, [ref]$dt)) { $erros.Add("linha ${n}: data invalida '$t' (use DD-MM)"); continue }
             $norm = $dt.ToString('MM-dd', $inv)
         } elseif ($t -match '^\d{2}-\d{2}-\d{4}$') {
-            if ($null -eq $secao -or $secao -eq 'regras' -or $secao -eq 'feriados fixos') { $erros.Add("linha ${n}: data '$t' fora das secoes de datas com ano"); continue }
+            if ($null -eq $secao -or $secao -eq 'feriados fixos') { $erros.Add("linha ${n}: data '$t' fora das secoes de datas com ano"); continue }
             if (-not [datetime]::TryParseExact($t, 'dd-MM-yyyy', $inv, $estilo, [ref]$dt)) { $erros.Add("linha ${n}: data invalida '$t' (use DD-MM-AAAA)"); continue }
             $norm = $dt.ToString('yyyy-MM-dd', $inv)
         } elseif ($t -match '^\d[\d\s\-/\.]*$') {

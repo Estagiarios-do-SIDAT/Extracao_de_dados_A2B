@@ -7,15 +7,16 @@
        mostra quantos feriados fixos (DD-MM) e datas com ano (DD-MM-AAAA) ele
        tem, por secao e por ano. Avisa redundancias que nao mudam o calculo
        (data com ano que cai num feriado fixo).
-    2. Compara docs/feriados.txt, docs/feriados.md e tools/*.ps1 com os dos
+    2. Compara docs/feriados.txt e tools/*.ps1 com os dos
        repositorios irmaos (Extracao_de_dados_Virtual, _Decision, _A2B na mesma
        pasta), se existirem: as copias devem ser identicas byte a byte.
        docs/feriados.txt tambem e comparado com a copia do COI
        (Extracao_de_dados_COI/docs/feriados.txt) e com a copia compartilhada
        "Documentos e Relatorios"/feriados.txt da pasta acima, se existirem.
        Essas copias so sao conferidas aqui: nenhuma consulta depende delas.
-    3. Confere se cada powerbi/*.m corresponde ao .sql de mesmo nome
-       (gerado por tools/gerar_powerbi_m.ps1).
+    3. Confere se cada powerbi/*.m (a consulta do Power BI) corresponde ao
+       SQL-fonte indicado no seu cabecalho ("// Fonte SQL: ..."), gerando de
+       novo com tools/gerar_powerbi_m.ps1.
     Termina com codigo 1 se algo nao bater.
 
 .EXAMPLE
@@ -38,7 +39,7 @@ $feriados | Group-Object Secao | ForEach-Object { Write-Host ("  secao '{0}': {1
 foreach ($a in (Get-AvisosFeriados -Feriados $feriados)) { Write-Host "  AVISO: $a" }
 
 function Get-Hash([string]$f) { (Get-FileHash -LiteralPath $f -Algorithm SHA256).Hash }
-$compartilhados = @('docs\feriados.txt', 'docs\feriados.md') + @(Get-ChildItem (Join-Path $repo 'tools') -Filter *.ps1 | ForEach-Object { "tools\$($_.Name)" })
+$compartilhados = @('docs\feriados.txt') + @(Get-ChildItem (Join-Path $repo 'tools') -Filter *.ps1 | ForEach-Object { "tools\$($_.Name)" })
 $irmaos = @(Get-ChildItem $pasta -Directory -Filter 'Extracao_de_dados_*' |
     Where-Object { $_.FullName -ne $repo -and @('Extracao_de_dados_Virtual', 'Extracao_de_dados_Decision', 'Extracao_de_dados_A2B') -contains $_.Name })
 $antes = $falhas
@@ -63,13 +64,19 @@ foreach ($c in $extras) {
     else { Write-Host "  copia igual: $c" }
 }
 
-foreach ($sql in @(Get-ChildItem (Join-Path $repo 'powerbi') -Filter *.sql)) {
-    $mArq = [System.IO.Path]::ChangeExtension($sql.FullName, '.m')
-    $esperado = (& (Join-Path $Ferramentas 'gerar_powerbi_m.ps1') -Consulta $sql.FullName -SomenteTexto).Replace("`r`n", "`n")
-    if (-not (Test-Path -LiteralPath $mArq)) { Write-Host "  FALTA: $([System.IO.Path]::GetFileName($mArq))"; $falhas++ }
-    elseif ([System.IO.File]::ReadAllText($mArq, [System.Text.Encoding]::UTF8).Replace("`r`n", "`n") -ne $esperado) {
-        Write-Host "  DESATUALIZADO: $([System.IO.Path]::GetFileName($mArq)) (rode tools\gerar_powerbi_m.ps1)"; $falhas++
-    } else { Write-Host "  em dia: $([System.IO.Path]::GetFileName($mArq))" }
+$mArquivos = @(Get-ChildItem (Join-Path $repo 'powerbi') -Filter *.m)
+if ($mArquivos.Count -eq 0) { Write-Host '  FALTA: nenhum powerbi/*.m'; $falhas++ }
+foreach ($mArq in $mArquivos) {
+    $atual = [System.IO.File]::ReadAllText($mArq.FullName, [System.Text.Encoding]::UTF8).Replace("`r`n", "`n")
+    $fonte = [regex]::Match($atual, '(?m)^// Fonte SQL: (.+?)\s*$')
+    if (-not $fonte.Success) { Write-Host "  SEM FONTE: $($mArq.Name) (cabecalho '// Fonte SQL:' ausente)"; $falhas++; continue }
+    $rel = $fonte.Groups[1].Value
+    $sqlFonte = Join-Path $repo $rel.Replace('/', '\')
+    if (-not (Test-Path -LiteralPath $sqlFonte)) { Write-Host "  FALTA SQL-fonte de $($mArq.Name): $rel"; $falhas++; continue }
+    $esperado = (& (Join-Path $Ferramentas 'gerar_powerbi_m.ps1') -Consulta $sqlFonte -SomenteTexto).Replace("`r`n", "`n")
+    if ($atual -ne $esperado) {
+        Write-Host "  DESATUALIZADO: $($mArq.Name) (rode tools\gerar_powerbi_m.ps1 -Consulta $rel -Saida powerbi\$($mArq.Name))"; $falhas++
+    } else { Write-Host "  em dia: $($mArq.Name) <- $rel" }
 }
 if ($falhas -gt 0) { Write-Host "Verificacao: $falhas problema(s)."; exit 1 }
 Write-Host 'Verificacao: tudo certo.'

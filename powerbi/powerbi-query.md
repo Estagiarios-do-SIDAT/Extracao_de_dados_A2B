@@ -23,7 +23,7 @@ Escrita para quem vai **usar** o painel, não para quem escreveu o SQL.
 13. [Manutenção no Power Query](#13-manutenção-no-power-query)
 
 Há uma versão desta documentação em HTML, para exibir dentro do painel no visual
-**HTML Content**: `docs/documentacao-powerbi-a2b.html`. Ela deriva deste
+**HTML Content**: `powerbi/documentacao-powerbi-a2b.html`. Ela deriva deste
 arquivo; se os dois divergirem, **vale este**.
 
 ---
@@ -68,13 +68,13 @@ O SQL não é mais colado em **Instrução SQL**: os feriados vêm de um arquivo
 
 1. **Página Inicial → Nova Fonte → Consulta Nula → Editor Avançado.**
 2. Cole o conteúdo inteiro de `consulta_faia_farc_power_bi.m`.
-3. Troque `INSERIR_URL_DO_ARQUIVO_FERIADOS_NO_SHAREPOINT` pelo link direto do `feriados.txt` no SharePoint (o mesmo da Virtual e da Decision).
+3. Preencha `SharePointFeriadosUrl` (no topo do `.m`) com o link direto do `feriados.txt` no SharePoint (o mesmo da Virtual TI e da Decision; ver [seção 14](#14-feriados-e-sharepoint)).
 4. Credenciais: SQL Server como hoje; SharePoint com **conta organizacional**. Privacidade das duas fontes: **Organizacional**. No gateway, permitir fontes de nuvem.
 5. Carregue e, na primeira vez, confira a quantidade de chamados (ver [seção 11](#11-conferência)).
 6. Nas próximas vezes, basta **Atualizar**: o período se ajusta sozinho (ver [seção 5](#5-período-da-consulta)) e o arquivo de feriados é lido de novo.
 7. Na primeira atualização depois de qualquer mudança no texto SQL, o Power BI pede para **aprovar a execução da consulta nativa**. Isso é esperado.
 
-Não é preciso ajustar datas a cada mês. Arquivo de feriados inacessível, placeholder não preenchido ou linha inválida **falham a atualização** com mensagem; o painel nunca é calculado sem feriados. Requisitos do serviço e checklist do primeiro refresh em [feriados.md](feriados.md).
+Não é preciso ajustar datas a cada mês. Arquivo de feriados inacessível, placeholder não preenchido ou linha inválida **falham a atualização** com mensagem; o painel nunca é calculado sem feriados. Requisitos do serviço e checklist do primeiro refresh na [seção 14](#14-feriados-e-sharepoint).
 
 ---
 
@@ -112,7 +112,7 @@ O script começa com `USE mdb;`, o mesmo padrão das outras consultas. Com isso 
 
 1. Conecte no mesmo servidor usado pelo Power BI.
 2. Confirme `mdb` na caixa de seleção de banco de dados (o `USE mdb;` do script já cobre isso, mas a caixa evita dúvida).
-3. Gere uma cópia com os feriados declarados (`.\tools\executar_consulta.ps1 -Consulta .\powerbi\consulta_faia_farc_power_bi.sql -GerarSql C:\temp\painel.sql`), abra-a **inteira** e execute **sem selecionar trecho**. Executar só um pedaço quebra a consulta: as tabelas temporárias dos blocos anteriores não existiriam. O arquivo original, sem `@Feriados`, falha com `Must declare the scalar variable "@Feriados"`.
+3. Gere uma cópia com os feriados declarados (`.\tools\executar_consulta.ps1 -Consulta .\queries\consulta_faia_farc_painel.sql -GerarSql C:\temp\painel.sql`), abra-a **inteira** e execute **sem selecionar trecho**. Executar só um pedaço quebra a consulta: as tabelas temporárias dos blocos anteriores não existiriam. O arquivo original, sem `@Feriados`, falha com `Must declare the scalar variable "@Feriados"`.
 4. Use as **mesmas credenciais ou permissões equivalentes** às do Power BI — basta leitura nas tabelas acima e permissão de criar tabela temporária em `tempdb`.
 5. Não é preciso sessão limpa. As 45 tabelas temporárias têm nomes exclusivos e cada bloco começa com `IF OBJECT_ID(...) DROP TABLE`, então a consulta roda duas vezes seguidas na mesma sessão e também depois das consultas individuais da Protect4 e da Decision.
 
@@ -124,7 +124,7 @@ O script começa com `USE mdb;`, o mesmo padrão das outras consultas. Com isso 
 | `Msg 207 — Invalid column name` | Tabela temporária antiga, de outra versão do script, ainda viva na sessão | Abrir sessão nova e repetir; se persistir, é defeito do arquivo e deve ser investigado |
 | `Msg 1088 / objeto #... não existe` | Foi executado só um trecho selecionado | Executar o arquivo inteiro |
 | `Must declare the scalar variable "@Feriados"` | Arquivo executado sem a lista de feriados | Gerar a cópia com `tools/executar_consulta.ps1 -GerarSql` |
-| `Feriados: @Feriados vazio ou invalido` / `data fora do formato` | Lista de feriados vazia ou com data inválida | Corrigir o arquivo de feriados ([feriados.md](feriados.md)) |
+| `Feriados: @Feriados vazio ou invalido` / `data fora do formato` | Lista de feriados vazia ou com data inválida | Corrigir o `feriados.txt` ([seção 14](#14-feriados-e-sharepoint)) |
 | Nada retorna / demora demais | Volume ou bloqueio | Aguardar; comparar com o tempo de atualização no Power BI |
 
 Ao relatar um problema, informe sempre: **cliente** (Power BI ou SSMS), **banco atual**, **usuário**, **mensagem de erro completa com o número da linha** e se o arquivo foi executado inteiro.
@@ -133,7 +133,7 @@ Ao relatar um problema, informe sempre: **cliente** (Power BI ou SSMS), **banco 
 
 ## 5. Período da consulta
 
-O período é **automático**. Não há data para editar a cada mês. **Esta seção vale para a consulta consolidada do Power BI** (`powerbi/consulta_faia_farc_power_bi.sql`); as consultas individuais têm período próprio, digitado no arquivo — ver [seção 2](#2-consultas-de-referência).
+O período é **automático**. Não há data para editar a cada mês. **Esta seção vale para a consulta do Power BI** (`powerbi/consulta_faia_farc_power_bi.m`, que executa `queries/consulta_faia_farc_painel.sql`); as consultas individuais têm período próprio, digitado no arquivo — ver [seção 2](#2-consultas-de-referência).
 
 - No relatório Power BI, a consulta consolidada apresenta os **12 ciclos mais recentes** da Protect4 — cerca de um ano.
 - Cada ciclo compreende o período iniciado às **00:00:00 do dia 24** e encerrado ao **final do dia 23 do mês seguinte**.
@@ -275,7 +275,7 @@ Um chamado pode atender o FAIA (alguém pegou em 5 minutos) e estourar o FARC (s
 
 ## 10. Feriados e pontos facultativos
 
-A lista de datas que **não** são dias úteis fica no **calendário** `feriados.txt`, e não no SQL: no SharePoint para o painel, lido a cada atualização, e em `docs/feriados.txt` para as consultas individuais. É o calendário do TCU, o mesmo para Virtual, Decision e A2B (não há lista por projeto). Formato, validação e falhas em [feriados.md](feriados.md). A lista é usada só no **calendário comercial** (P3, P4 e P5). Chamados **P1 e P2 contam corrido** e ignoram essa lista por completo.
+A lista de datas que **não** são dias úteis fica no **calendário** `feriados.txt`, e não no SQL: no SharePoint para o painel, lido a cada atualização, e em `docs/feriados.txt` para as consultas individuais. É o calendário do TCU, o mesmo para Virtual TI, Decision e A2B (não há lista por projeto). Regras de preenchimento no próprio [`docs/feriados.txt`](../docs/feriados.txt); falhas e SharePoint na [seção 14](#14-feriados-e-sharepoint). A lista é usada só no **calendário comercial** (P3, P4 e P5). Chamados **P1 e P2 contam corrido** e ignoram essa lista por completo.
 
 O bloco `[S.2]` do SQL recebe a lista no parâmetro `@Feriados`, valida e monta **duas** tabelas, e o FAIA e o FARC usam **as mesmas duas** — não existe um calendário para cada indicador:
 
@@ -299,24 +299,24 @@ O que entra em cada lista:
 ### Como atualizar
 
 1. Abra o `feriados.txt` no SharePoint.
-2. Acrescente a data, sozinha na linha, na seção certa (`## Feriados móveis/diferenciados` ou `## Pontos Facultativos`), com a Portaria num parágrafo da seção. Ex.: `05-06-2026` em `## Pontos Facultativos` (Portaria-TCU nº 1/2026). Feriados nacionais fixos (`DD-MM`) já valem todo ano e não se repetem.
+2. Acrescente a data, sozinha na linha, na seção certa (`## Feriados móveis/diferenciados` ou `## Pontos Facultativos`). Registre a Portaria (número e código de autenticidade) no histórico do projeto (`project-context/`). Ex.: `05-06-2026` em `## Pontos Facultativos` (Portaria-TCU nº 1/2026). Feriados nacionais fixos (`DD-MM`) já valem todo ano e não se repetem.
 3. Não inclua sábados e domingos — já são tratados automaticamente.
 4. Salve. A próxima atualização do painel já usa a lista nova: não é preciso mudar o SQL nem republicar o relatório.
-5. Copie o mesmo arquivo para o `docs/feriados.txt` de todos os repositórios (Virtual, Decision, A2B e COI) e para `Documentos e Relatórios/feriados.txt`, e rode `tools/verificar_feriados.ps1`; as consultas individuais passam a usar a lista nova.
+5. Copie o mesmo arquivo para o `docs/feriados.txt` de todos os repositórios (Virtual TI, Decision, A2B e COI) e para `Documentos e Relatórios/feriados.txt`, e rode `tools/verificar_feriados.ps1`; as consultas individuais passam a usar a lista nova.
 6. Valide um chamado P3/P4/P5 que atravesse a nova data.
 
 Data inválida, repetida, fora do formato ou fora da seção certa, ou arquivo inacessível, **falham a atualização** com mensagem.
 
 > **Manutenção anual.** Os feriados fixos já estão prontos e não precisam de nada. O que precisa de atenção **todo ano** são as datas únicas: os feriados móveis e os pontos facultativos do TCU de cada ano coberto pela janela.
 
-**Situação atual do cadastro.** Calendário do TCU de **2025 e 2026 completos**, conferido no Boletim do TCU pelos códigos de autenticidade ([feriados.md](feriados.md), seção 2):
+**Situação atual do cadastro.** Calendário do TCU de **2025 e 2026 completos**, conferido no Boletim do TCU pelos códigos de autenticidade (lista no histórico do projeto, `project-context/`):
 
 | Ano | Portaria anual | Alterações | Datas por ano no arquivo |
 |---|---|---|---|
 | 2025 | Portaria-TCU nº 10, de 13/01/2025 | nº 67, nº 157 e nº 176 de 2025 | 03/03, 04/03, 05/03, 17/04, 18/04, 02/05, 19/06, 20/06, 27/10, 21/11, 24/12, 26/12, 31/12 |
 | 2026 | Portaria-TCU nº 1, de 08/01/2026 (02/01 também pela nº 179/2025) | nº 93 de 2026 | 02/01, 16–18/02, 02/04, 03/04, 20/04, 04/06, 05/06, 29/06, 28/10, 24/12, 31/12 |
 
-O PDF da portaria de 2026 guardado em `Documentos e Relatórios` é a versão **original**: a data de 29/06/2026 veio depois, pela Portaria nº 93/2026, e não aparece nele. Até 2026-10-06 a A2B só tinha as datas de 2025 a partir de 27/10 e tinha 05/04/2026 (Páscoa, domingo), que não está na Portaria; desde 2026-10-07 usa o calendário completo, igual ao da Virtual e da Decision.
+O PDF da portaria de 2026 guardado em `Documentos e Relatórios` é a versão **original**: a data de 29/06/2026 veio depois, pela Portaria nº 93/2026, e não aparece nele. Até 2026-10-06 a A2B só tinha as datas de 2025 a partir de 27/10 e tinha 05/04/2026 (Páscoa, domingo), que não está na Portaria; desde 2026-10-07 usa o calendário completo, igual ao da Virtual TI e da Decision.
 
 As consultas individuais (`consulta_faia_a2b_protect4.sql` e `consulta_farc_a2b_protect4.sql`) leem a mesma lista da A2B, pelo mesmo parâmetro, e montam `#FeriadosFixos` e `#FeriadosPorData`. Não há mais lista própria em cada consulta.
 
@@ -392,7 +392,7 @@ Se os dois números forem diferentes, existe duplicidade e o resultado não deve
 **Limitações conhecidas:**
 
 - os pontos facultativos de **2027 ainda não estão cadastrados**. A partir de janeiro de 2027 o calendário comercial ficará incompleto até que sejam incluídos.
-- o `.m` foi validado com o motor do Power BI Desktop, fora do PBIX e com o arquivo de feriados servido localmente: executa com as duas fontes como Organizacional e o firewall de privacidade ativo, e devolve o mesmo resultado do SQL. A primeira versão gerada (um passo por etapa) era recusada pelo firewall (*Formula.Firewall*); a atual faz tudo num único passo (`Fonte`). O acesso ao SharePoint Online real (OAuth2), o gateway e o refresh no serviço ainda dependem de validação no PBIX ([feriados.md](feriados.md)).
+- o `.m` foi validado com o motor do Power BI Desktop, fora do PBIX e com o arquivo de feriados servido localmente: executa com as duas fontes como Organizacional e o firewall de privacidade ativo, e devolve o mesmo resultado do SQL. A primeira versão gerada (um passo por etapa) era recusada pelo firewall (*Formula.Firewall*); a atual faz tudo num único passo (`Fonte`). O acesso ao SharePoint Online real (OAuth2), o gateway e o refresh no serviço ainda dependem de validação no PBIX ([seção 14](#14-feriados-e-sharepoint)).
 - nas colunas compartilhadas `Data Abertura` e `Data Captura`, o painel usa o valor da metade FAIA, que difere do FARC individual em alguns chamados — 9 dos 234 do ciclo 24/03–23/04/2026. As colunas do FARC coincidem nos 234.
 - a regra de arredondamento (proporcional, em vez de "hora ou fração") **ainda não foi confirmada contra o edital**. Se o edital exigir "hora ou fração", os quatro indicadores do projeto precisarão ser revistos.
 - desde 2026-10-07 o painel e as duas consultas individuais leem a mesma lista de feriados da A2B. A diferença antiga do FAIA individual (sem `2025-12-24` e `2025-12-31`) acabou.
@@ -412,7 +412,7 @@ de feriados no SharePoint.
 3. **Página Inicial → Editor Avançado.** O SQL está no texto `SqlTexto`.
 4. Depois de editar: **Concluído → Fechar e aplicar**. Na primeira atualização o Power BI pede para **aprovar a consulta nativa** — aprove.
 
-O caminho recomendado é alterar `powerbi/consulta_faia_farc_power_bi.sql` no repositório, gerar o `.m` de novo (`.\tools\gerar_powerbi_m.ps1 -Consulta .\powerbi\consulta_faia_farc_power_bi.sql`) e colar o `.m` inteiro no Editor Avançado, trocando de novo o placeholder do SharePoint. O `.m` gerado é versionado no repositório.
+O caminho recomendado é alterar `queries/consulta_faia_farc_painel.sql` no repositório, gerar o `.m` de novo (`.\tools\gerar_powerbi_m.ps1 -Consulta .\queries\consulta_faia_farc_painel.sql -Saida .\powerbi\consulta_faia_farc_power_bi.m`) e colar o `.m` inteiro no Editor Avançado, preenchendo de novo `SharePointFeriadosUrl`. O `.m` gerado é versionado no repositório.
 
 ### Mudar a quantidade de ciclos
 
@@ -440,7 +440,7 @@ Sem mexer no SQL nem republicar o relatório:
 
 1. Confirme a data na fonte oficial do TCU (seção 10).
 2. Abra o `feriados.txt` no SharePoint.
-3. **Adicionar:** inclua a data (`DD-MM-AAAA`) na seção certa, com a Portaria num parágrafo da seção. Feriados nacionais fixos (`DD-MM`) já valem todo ano.
+3. **Adicionar:** inclua a data (`DD-MM-AAAA`) na seção certa e registre a Portaria no histórico do projeto (`project-context/`). Feriados nacionais fixos (`DD-MM`) já valem todo ano.
 4. **Corrigir:** edite a data na linha existente.
 5. **Remover:** apague a linha da data.
 6. Salve. A próxima atualização do painel já usa a lista nova.
@@ -452,3 +452,83 @@ Sem mexer no SQL nem republicar o relatório:
 - Um dia cadastrado deixa de contar como tempo **comercial** (P3, P4 e P5). P1 e P2 contam corrido e não mudam.
 - Os valores só mudam depois de **atualizar**. Como o cálculo usa a vida inteira de cada chamado, uma data nova pode alterar chamados de ciclos já carregados.
 - Incluir uma data nova **muda resultado**. Na A2B, isso exige validação antes de ir para o painel.
+
+## 14. Feriados e SharePoint
+
+O cálculo do Horário TCU é feito no SQL Server, que **não lê** o SharePoint.
+A consulta do Power BI (`.m`) lê o calendário `feriados.txt` do SharePoint a
+cada atualização, valida todas as linhas, converte as datas para o formato do
+SQL (`DD-MM` → `MM-DD`, `DD-MM-AAAA` → `AAAA-MM-DD`) e envia a lista ao SQL no
+parâmetro `@Feriados` (JSON). Nenhum texto do arquivo é concatenado no SQL.
+
+**Qual arquivo.** O calendário é o `feriados.txt`, o mesmo para Virtual TI,
+Decision e A2B. A cópia versionada é [`docs/feriados.txt`](../docs/feriados.txt)
+(as regras de preenchimento estão no próprio arquivo); a do SharePoint é a que
+o painel lê. Mantenha as duas iguais, e também as cópias dos outros
+repositórios e de `Documentos e Relatórios/feriados.txt`; o
+`tools/verificar_feriados.ps1` confere.
+
+**Onde trocar o link.** Para trocar o endereço do SharePoint, altere apenas
+`SharePointFeriadosUrl`. É a primeira linha depois de `let` no `.m`, dentro do
+bloco `CONFIGURACAO - SHAREPOINT`; o endereço não aparece em nenhum outro lugar
+do arquivo:
+
+```powerquery
+SharePointFeriadosUrl = "INSERIR_URL_DO_ARQUIVO_FERIADOS_NO_SHAREPOINT",
+```
+
+**PENDENTE DO LINK REAL DO SHAREPOINT.** O endereço definitivo do
+`feriados.txt` ainda não foi registrado (2026-10-07: nenhum link do arquivo
+foi encontrado nos repositórios nem em `Documentos e Relatórios`). Enquanto o
+placeholder estiver no `.m`, a atualização falha com *Preencha
+SharePointFeriadosUrl...*. Use o link **direto** do arquivo, no formato
+`https://<empresa>.sharepoint.com/sites/<site>/Shared%20Documents/<pasta>/feriados.txt`
+(no SharePoint: `...` do arquivo > *Detalhes* > *Caminho*; tirar o final
+`?web=1`, se houver; o link de compartilhamento `/:t:/r/...` não serve), o
+mesmo nos três relatórios. Ao gerar o `.m` de novo, o placeholder volta: troque
+de novo, ou registre o link definitivo no `tools/gerar_powerbi_m.ps1` (único
+ponto, comum aos três repositórios).
+
+**Configuração no Power BI.**
+
+- **Privacidade:** SharePoint e SQL Server como **Organizacional**. Com uma das
+  fontes Privada ou Pública, ou sem nível definido, o Power Query recusa a
+  combinação. Não é preciso (nem recomendado) ignorar os níveis de
+  privacidade.
+- **Credenciais:** SQL Server como hoje (Windows/gateway); SharePoint com
+  *Conta organizacional*.
+- **Gateway:** o SQL Server é local e o SharePoint Online é fonte de nuvem; a
+  consulta combina as duas e é avaliada no gateway: habilitar *Permitir que as
+  fontes de dados de nuvem do usuário sejam atualizadas por este cluster de
+  gateway*.
+- **Consulta nativa:** no Desktop, aprovar a execução da consulta nativa na
+  primeira vez (e a cada mudança do SQL).
+- **Formula.Firewall:** a leitura do SharePoint e o SQL ficam num único passo
+  (`Fonte`); não separe os passos. `SharePointFeriadosUrl` é só um texto e
+  pode ficar no topo.
+
+**Falhas que interrompem a atualização** (com a mensagem e, quando for o caso,
+a linha do arquivo): link não preenchido; arquivo inacessível (ex.: 404);
+arquivo vazio ou fora de UTF-8; data inexistente (`31-02-2026`); linha que
+parece data fora do formato (`2026-04-03`, `3-4-2026`); data repetida; data
+fora da seção certa; seção diferente das três do arquivo; arquivo sem nenhuma
+data. O relatório nunca é calculado com zero feriados.
+
+**Primeiro refresh (checklist).**
+
+1. Copiar `docs/feriados.txt` para a biblioteca do SharePoint escolhida.
+2. Criar a consulta a partir do `.m` (*Nova Fonte > Consulta Nula > Editor
+   Avançado*, colar o arquivo inteiro).
+3. Trocar o placeholder de `SharePointFeriadosUrl` pelo link direto.
+4. Credenciais, privacidade (Organizacional + Organizacional) e gateway, como
+   acima.
+5. Atualizar no Desktop e conferir número de linhas e totais de FAIA e FARC.
+6. Publicar e acompanhar o primeiro refresh agendado no serviço.
+7. Teste de manutenção: incluir no SharePoint uma data de teste num dia útil
+   recente, atualizar, ver as horas no Horário TCU mudarem, apagar a data e
+   atualizar de novo.
+
+O motor do Power BI Desktop desta máquina executou o `.m` com as duas fontes
+como Organizacional e o firewall ativo (arquivo servido por HTTP local). O
+acesso ao SharePoint Online real, o PBIX, o gateway e o refresh no serviço
+ainda dependem do ambiente.

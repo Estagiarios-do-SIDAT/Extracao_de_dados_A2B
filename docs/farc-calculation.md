@@ -281,7 +281,7 @@ O desconto de feriados e pontos facultativos é aplicado nos três caminhos que 
 * `#TempoAtendimentoRotina`, usado nas rotinas;
 * `#TempoAtendimentoStatusLead`, usado no segundo cálculo dos chamados normais.
 
-Os feriados fixos ficam em `#FeriadosFixos`, no formato `MM-DD`. Feriados móveis e pontos facultativos ficam em `#FeriadosPorData`, com a data completa. As duas tabelas são montadas a partir do arquivo de feriados (o calendário do TCU, o mesmo da Virtual e da Decision), recebido no parâmetro `@Feriados`; as datas não ficam no SQL ([feriados.md](feriados.md)). A lista tem o calendário de 2025 completo (Portarias-TCU nº 10, 67, 157 e 176/2025) e o de 2026 (nº 1 e 93/2026).
+Os feriados fixos ficam em `#FeriadosFixos`, no formato `MM-DD`. Feriados móveis e pontos facultativos ficam em `#FeriadosPorData`, com a data completa. As duas tabelas são montadas a partir do arquivo de feriados (o calendário do TCU, o mesmo da Virtual TI e da Decision), recebido no parâmetro `@Feriados`; as datas não ficam no SQL ([feriados.txt](feriados.txt)). A lista tem o calendário de 2025 completo (Portarias-TCU nº 10, 67, 157 e 176/2025) e o de 2026 (nº 1 e 93/2026).
 
 O calendário afeta somente a contagem **comercial** de P3, P4 e P5. P1 e P2 continuam em tempo corrido e não descontam feriado.
 
@@ -389,7 +389,7 @@ O cálculo foi feito para bater com o relatório BO e, na grande maioria dos cha
 Além desta consulta, existe uma **consulta consolidada** feita para alimentar o painel:
 
 ```text
-powerbi/consulta_faia_farc_power_bi.sql
+queries/consulta_faia_farc_painel.sql   (executada pela consulta do Power BI, powerbi/consulta_faia_farc_power_bi.m)
 ```
 
 O que muda entre as duas:
@@ -409,4 +409,4 @@ Pontos importantes:
 - as colunas de cada indicador continuam separadas. **FAIA e FARC continuam sendo indicadores diferentes**;
 - ela devolve **uma linha por chamado**.
 
-A explicação das colunas do painel está em [powerbi-query.md](powerbi-query.md).
+A explicação das colunas do painel está em [powerbi-query.md](../powerbi/powerbi-query.md).

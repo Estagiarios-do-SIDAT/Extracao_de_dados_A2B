@@ -6,7 +6,7 @@
     O SQL Server nao le arquivos do computador do usuario, e a conta usada nas
     consultas nao tem permissao de BULK/OPENROWSET. Por isso os feriados chegam
     a consulta pelo parametro @Feriados (JSON), montado aqui a partir do
-    arquivo. O calendario e o mesmo (o do TCU) para Virtual, Decision e A2B. E o
+    arquivo. O calendario e o mesmo (o do TCU) para Virtual TI, Decision e A2B. E o
     mesmo parametro que o Power BI envia.
 
     Dois modos:

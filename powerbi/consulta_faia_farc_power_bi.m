@@ -1,15 +1,17 @@
 // =============================================================================
-// Power BI - consulta consulta_faia_farc_power_bi.sql com feriados do SharePoint
+// Power BI - consulta do relatorio (unica), com feriados do SharePoint
+// Fonte SQL: queries/consulta_faia_farc_painel.sql
 //
-// GERADO por tools/gerar_powerbi_m.ps1 a partir de powerbi/consulta_faia_farc_power_bi.sql.
-// Nao edite este arquivo: altere o .sql e gere de novo.
+// GERADO por tools/gerar_powerbi_m.ps1 a partir de queries/consulta_faia_farc_painel.sql.
+// Nao edite este arquivo: altere o SQL-fonte e gere de novo.
 //
 // Uso (uma vez): Power Query > Pagina Inicial > Nova Fonte > Consulta Nula >
 // Editor Avancado > colar este arquivo inteiro. Depois, preencher
-// UrlArquivoFeriados com o link direto do arquivo feriados.txt no SharePoint.
+// SharePointFeriadosUrl (logo abaixo de "let") com o link direto do arquivo
+// feriados.txt no SharePoint.
 //
 // Feriados: a cada atualizacao o arquivo e lido de novo. Ele e o mesmo para
-// Virtual, Decision e A2B (calendario do TCU). Qualquer problema (link nao
+// Virtual TI, Decision e A2B (calendario do TCU). Qualquer problema (link nao
 // preenchido, arquivo inacessivel, codificacao invalida, data invalida ou
 // repetida, secao desconhecida, arquivo sem datas) FALHA a atualizacao com
 // mensagem; o relatorio nunca e calculado com zero feriados.
@@ -19,14 +21,18 @@
 // mesma particao; nao separe os passos, senao volta o erro Formula.Firewall.
 // =============================================================================
 let
+    // ============================================================================
+    // CONFIGURACAO - SHAREPOINT
+    // Altere SOMENTE esta URL quando o arquivo feriados.txt mudar de local.
+    // Link direto do arquivo, por exemplo:
+    //   https://<empresa>.sharepoint.com/sites/<site>/Shared%20Documents/<pasta>/feriados.txt
+    // ============================================================================
+    SharePointFeriadosUrl = "INSERIR_URL_DO_ARQUIVO_FERIADOS_NO_SHAREPOINT",
+
     Fonte =
         let
-            // ---- CONFIGURACAO (preencher uma unica vez) ---------------------
-            // Link direto do arquivo, por exemplo:
-            //   https://<empresa>.sharepoint.com/sites/<site>/Shared%20Documents/<pasta>/feriados.txt
             // Servidor e banco da consulta SQL: os mesmos da fonte atual do
             // relatorio (conferir no PBIX; estao fixos no fim, em Sql.Database).
-            UrlArquivoFeriados = "INSERIR_URL_DO_ARQUIVO_FERIADOS_NO_SHAREPOINT",
 
             // ---- Leitura do arquivo de feriados (feriados.txt) -------------
             // Mesmas regras de tools/feriados.ps1: so contam linhas que tem
@@ -35,9 +41,9 @@ let
             // ignorados. Saida para o SQL: MM-DD e AAAA-MM-DD.
             Falha = (mensagem as text) => error Error.Record("Feriados", mensagem),
             Conteudo =
-                if Text.Contains(UrlArquivoFeriados, "INSERIR_") then
-                    Falha("Preencha UrlArquivoFeriados com o link do arquivo feriados.txt no SharePoint.")
-                else Binary.Buffer(Web.Contents(UrlArquivoFeriados)),
+                if Text.Contains(SharePointFeriadosUrl, "INSERIR_") then
+                    Falha("Preencha SharePointFeriadosUrl com o link do arquivo feriados.txt no SharePoint.")
+                else Binary.Buffer(Web.Contents(SharePointFeriadosUrl)),
             Utf16 = List.Contains({#binary({255, 254}), #binary({254, 255})}, Binary.Range(Conteudo, 0, 2)),
             TextoBruto =
                 if Utf16 then Falha("Arquivo de feriados com codificacao invalida (salve em UTF-8, nao UTF-16).")
@@ -54,9 +60,7 @@ let
             NomeSecao = (s as text) as text =>
                 Text.Combine(List.Select(Text.SplitAny(SemAcento(Text.Lower(Text.Trim(s))), " #(tab)"), each _ <> ""), " "),
             Secoes = [
-                #"regras" = null,
                 #"feriados fixos" = "Feriado fixo",
-                #"feriados por data" = "Feriado por data",
                 #"feriados moveis/diferenciados" = "Feriado m#(00F3)vel/diferenciado",
                 #"pontos facultativos" = "Ponto facultativo"
             ],
@@ -89,7 +93,7 @@ let
                             if d = null then Erro(e, n, "data invalida '" & t & "' (use DD-MM)")
                             else Item(e, n, t, Dois(Date.Month(d)) & "-" & Dois(Date.Day(d))))
                     else if EhDatada(t) then
-                        (if e[secao] = null or e[secao] = "regras" or e[secao] = "feriados fixos" then
+                        (if e[secao] = null or e[secao] = "feriados fixos" then
                             Erro(e, n, "data '" & t & "' fora das secoes de datas com ano")
                          else
                             let d = try #date(Number.From(Text.End(t, 4)), Number.From(Text.Middle(t, 3, 2)), Number.From(Text.Start(t, 2))) otherwise null in
@@ -105,10 +109,16 @@ let
             ParaSql = List.Transform(Validas, each [data = _[data], descricao = _[descricao]]),
             FeriadosJson = Text.FromBinary(Json.FromValue(ParaSql), TextEncoding.Utf8),
 
-            // ---- Consulta SQL (powerbi/consulta_faia_farc_power_bi.sql) ----------------------------
+            // ---- Consulta SQL (queries/consulta_faia_farc_painel.sql) ----------------------------
             SqlTexto = "-- =============================================================================
 -- PARAMETRO EDITAVEL  (no Power BI: Editor Avancado da consulta, no inicio do
 -- texto SqlTexto; no repositorio: altere aqui e gere de novo powerbi/consulta_faia_farc_power_bi.m)
+--
+-- Este arquivo e a CONSULTA DE REFERENCIA DO PAINEL: a fonte do .m e a copia
+-- executavel dele para testes e regressao. Ele nao se cola no Power BI; a
+-- unica consulta do Power BI e powerbi/consulta_faia_farc_power_bi.m, gerada
+-- por tools/gerar_powerbi_m.ps1 -Consulta queries/consulta_faia_farc_painel.sql
+-- -Saida powerbi/consulta_faia_farc_power_bi.m.
 --
 --   Quantidade de ciclos COMPLETOS carregados. Padrao: 12.
 --   Cada ciclo vai do dia 24 de um mes ate o dia 23 do mes seguinte (regra da
@@ -152,7 +162,7 @@ Saida:
 Referencias tecnicas dos calculos (nao substituidas por este arquivo):
   - queries/consulta_faia_a2b_protect4.sql
   - queries/consulta_farc_a2b_protect4.sql
-  - docs/powerbi-query.md
+  - powerbi/powerbi-query.md
 
 A consulta nao cria view, tabela ou procedure permanente. Usa apenas tabelas
 temporarias da sessao, todas com o prefixo #PBI_, #FAIA_ ou #FARC_, que nao
@@ -330,7 +340,7 @@ VALUES
 --
 -- A lista de feriados NAO fica mais neste arquivo. Ela vem do arquivo de
 -- feriados (docs/feriados.txt; no Power BI, a copia no SharePoint), o mesmo
--- calendario do TCU para Virtual, Decision e A2B, pelo parametro @Feriados
+-- calendario do TCU para Virtual TI, Decision e A2B, pelo parametro @Feriados
 -- (JSON):
 --   [{""data"":""12-25"",""descricao"":""Natal""},{""data"":""2026-04-03"",""descricao"":""...""}]
 --   MM-DD      = feriado fixo, vale todo ano;

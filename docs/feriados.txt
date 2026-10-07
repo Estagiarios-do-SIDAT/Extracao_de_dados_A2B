@@ -1,34 +1,33 @@
 CALENDÁRIO DE FERIADOS E PONTOS FACULTATIVOS DO TCU
 
-Calendário comum usado no cálculo de FAIA e FARC (Virtual, Decision e A2B).
-Cópias idênticas em docs/feriados.txt de cada repositório
-(Extracao_de_dados_Decision, _A2B, _COI e _Virtual) e em
-Documentos e Relatórios/feriados.txt. Explicações, nomes das datas e
-Portarias: docs/feriados.md.
+Calendário comum usado no cálculo de FAIA e FARC (Virtual TI, Decision e A2B).
 
-Como o arquivo é lido: só contam as linhas que têm apenas uma data
-(DD-MM ou DD-MM-AAAA). Títulos, linhas vazias e parágrafos são ignorados.
-
-
-## Regras
-
+Regras:
 - 24x7: feriados e pontos facultativos não interrompem a contagem.
 - Horário TCU: conta somente segunda a sexta, das 08:00 às 20:00,
   excluindo as datas cadastradas neste arquivo.
-- Feriados Fixos usam DD-MM e se repetem automaticamente em todos os anos.
-- Todas as datas com ano usam DD-MM-AAAA e valem somente para aquele ano.
 - O dia cadastrado fica inteiro fora do Horário TCU (não há meio expediente).
 - Fonte: as Portarias do TCU de cada ano e as que as alteram. Não entram
   feriados estaduais, municipais ou de outros órgãos.
-- Ao sair a Portaria de um novo ano, cadastrar só as datas daquele ano
-  (seções com ano); os Feriados Fixos já valem para ele.
+
+Como preencher:
+- Feriados Fixos usam DD-MM e se repetem automaticamente em todos os anos.
+- Todas as datas com ano usam DD-MM-AAAA e valem somente para aquele ano.
+- Uma data por linha, sem mais nada na linha. Títulos, linhas vazias e
+  textos como este são ignorados.
+- Só existem as três seções abaixo: Feriados Fixos, Feriados
+  móveis/diferenciados e Pontos Facultativos.
+- Ao sair a Portaria de um novo ano, cadastrar só as datas daquele ano nas
+  duas últimas seções; os Feriados Fixos já valem para ele.
+- Data inexistente, repetida, fora do formato ou fora da seção certa
+  interrompe a atualização, com o número da linha.
+- Salvar em UTF-8.
 
 
 ## Feriados Fixos
 
 Feriados que se repetem todos os anos.
 Formato: DD-MM.
-Fonte: feriados nacionais listados nas Portarias-TCU nº 10/2025 e nº 1/2026.
 
 01-01
 21-04
@@ -41,26 +40,16 @@ Fonte: feriados nacionais listados nas Portarias-TCU nº 10/2025 e nº 1/2026.
 25-12
 
 
-## Feriados Por Data
-
-Feriados válidos apenas para a data informada e que não pertencem às
-categorias de feriado móvel/diferenciado ou ponto facultativo.
-Formato: DD-MM-AAAA.
-Nenhuma data cadastrada até agora.
-
-
 ## Feriados móveis/diferenciados
 
 Feriados cuja data muda de ano para ano ou que precisam ser cadastrados
 especificamente para determinado ano (Paixão de Cristo).
 Formato: DD-MM-AAAA.
 
-Ano de 2025. Fontes:
-- Portaria-TCU nº 10/2025 (BTCU, autenticidade 77411949)
+Ano de 2025.
 18-04-2025
 
-Ano de 2026. Fontes:
-- Portaria-TCU nº 1/2026 (BTCU, autenticidade 79561193)
+Ano de 2026.
 03-04-2026
 
 
@@ -72,11 +61,7 @@ Servidor e datas extraordinárias).
 Não se repetem automaticamente nos anos seguintes.
 Formato: DD-MM-AAAA.
 
-Ano de 2025. Fontes:
-- Portaria-TCU nº 10/2025 (BTCU, autenticidade 77411949)
-- Portaria-TCU nº 67/2025 (BTCU, autenticidade 77981373)
-- Portaria-TCU nº 157/2025 (BTCU, autenticidade 79190602)
-- Portaria-TCU nº 176/2025 (BTCU, autenticidade 79506777)
+Ano de 2025.
 03-03-2025
 04-03-2025
 05-03-2025
@@ -90,10 +75,7 @@ Ano de 2025. Fontes:
 26-12-2025
 31-12-2025
 
-Ano de 2026. Fontes:
-- Portaria-TCU nº 1/2026 (BTCU, autenticidade 79561193)
-- Portaria-TCU nº 179/2025
-- Portaria-TCU nº 93/2026 (BTCU, autenticidade 80587034)
+Ano de 2026.
 02-01-2026
 16-02-2026
 17-02-2026
