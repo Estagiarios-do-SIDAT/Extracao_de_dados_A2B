@@ -572,7 +572,7 @@ lista e monta duas tabelas:
 | Tabela | Formato | Para que serve |
 |---|---|---|
 | `#FeriadosFixos` | `MM-DD` | feriados que caem sempre no mesmo dia todo ano (Natal, Tiradentes, 1º de Maio...) |
-| `#FeriadosPorData` | `AAAA-MM-DD` | feriados móveis (Páscoa, Paixão de Cristo) e os pontos facultativos do TCU, que valem só no ano cadastrado |
+| `#FeriadosPorData` | `AAAA-MM-DD` | o feriado nacional de data variável (Paixão de Cristo) e os pontos facultativos do TCU, que valem só no ano cadastrado |
 
 No cálculo comercial, um dia que apareça em qualquer uma das duas **conta zero**, exatamente como sábado e domingo:
 

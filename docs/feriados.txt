@@ -1,33 +1,133 @@
 CALENDÁRIO DE FERIADOS E PONTOS FACULTATIVOS DO TCU
 
 Calendário comum usado no cálculo de FAIA e FARC (Virtual TI, Decision e A2B).
+Lista os dias que ficam fora do Horário TCU. A fonte é a Portaria do TCU que
+divulga os feriados nacionais e define os pontos facultativos de cada ano, e
+as Portarias que a alteram. Não entram feriados estaduais, municipais ou de
+outros órgãos.
 
-Regras:
-- 24x7: feriados e pontos facultativos não interrompem a contagem.
-- Horário TCU: conta somente segunda a sexta, das 08:00 às 20:00,
-  excluindo as datas cadastradas neste arquivo.
-- O dia cadastrado fica inteiro fora do Horário TCU (não há meio expediente).
-- Fonte: as Portarias do TCU de cada ano e as que as alteram. Não entram
-  feriados estaduais, municipais ou de outros órgãos.
 
-Como preencher:
-- Feriados Fixos usam DD-MM e se repetem automaticamente em todos os anos.
-- Todas as datas com ano usam DD-MM-AAAA e valem somente para aquele ano.
-- Uma data por linha, sem mais nada na linha. Títulos, linhas vazias e
-  textos como este são ignorados.
-- Só existem as três seções abaixo: Feriados Fixos, Feriados
-  móveis/diferenciados e Pontos Facultativos.
-- Ao sair a Portaria de um novo ano, cadastrar só as datas daquele ano nas
-  duas últimas seções; os Feriados Fixos já valem para ele.
-- Data inexistente, repetida, fora do formato ou fora da seção certa
-  interrompe a atualização, com o número da linha.
-- Salvar em UTF-8.
+PARA QUE SERVE
+
+- Horário TCU: conta somente segunda a sexta, das 08:00 às 20:00, e deixa de
+  fora o dia inteiro de cada data cadastrada aqui (não há meio expediente).
+- 24x7: conta todas as horas, inclusive fins de semana, feriados e pontos
+  facultativos. Este arquivo não muda nada na contagem 24x7.
+- Sábado e domingo já ficam fora do Horário TCU sem precisar de cadastro. Por
+  isso a Páscoa, que é sempre num domingo, não aparece aqui.
+
+
+AS TRÊS SEÇÕES
+
+A seção de cada data segue a classificação da Portaria do TCU, e não o fato
+de a data mudar ou não de um ano para outro:
+
+- Feriados Fixos: feriados nacionais que caem sempre no mesmo dia.
+  São cadastrados sem ano e valem para todos os anos.
+- Feriados móveis/diferenciados: datas que a Portaria classifica como feriado
+  nacional, mas cujo dia muda a cada ano. Hoje é só a Paixão de Cristo
+  (Sexta-feira da Paixão).
+- Pontos Facultativos: dias que a Portaria define como ponto facultativo.
+  Carnaval, Quarta-Feira de Cinzas e Corpus Christi também mudam de data a
+  cada ano, mas ficam aqui porque a Portaria os define como ponto
+  facultativo, e não como feriado. O mesmo vale para emendas, vésperas, o
+  Dia do Servidor Público e datas extraordinárias.
+
+As duas últimas seções têm o mesmo efeito no cálculo: o dia fica fora do
+Horário TCU. A separação existe para conferir o arquivo contra a Portaria.
+
+
+FORMATO OBRIGATÓRIO DO ARQUIVO PARA POWER QUERY E VALIDADORES
+
+O arquivo é lido linha a linha, com as mesmas regras, pelo Power BI (consulta
+.m) e pelos scripts da pasta tools (feriados.ps1, usado pelo
+verificar_feriados.ps1 e pelo executar_consulta.ps1). Os espaços no começo e
+no fim de cada linha são desconsiderados, e cada linha cai em um destes
+casos:
+
+- Título de seção: linha que começa com dois sinais de cerquilha (##).
+  Só existem os três títulos que aparecem mais abaixo neste arquivo. O
+  leitor ignora maiúsculas, acentos e espaços a mais no nome, mas qualquer
+  outro nome é seção desconhecida e dá erro. Não renomeie, não traduza e não
+  crie títulos. Uma linha de explicação que comece com ## também é lida como
+  título e dá erro.
+- Data: a linha inteira é só a data, com dois dígitos para o dia e para o mês
+  e hífen como separador:
+    DD-MM        só na seção Feriados Fixos (vale todo ano);
+    DD-MM-AAAA   só nas seções Feriados móveis/diferenciados e Pontos
+                 Facultativos (vale só naquele dia).
+- Texto ignorado: todo o resto, inclusive linhas vazias, estas explicações e
+  os rótulos "Ano de ..." dentro das seções.
+
+Duas armadilhas:
+
+- Data com texto na mesma linha (a data seguida de um comentário) NÃO é lida
+  e NÃO dá erro: a data simplesmente fica fora do calendário. Escreva a data
+  sozinha na linha e, se quiser comentar, use a linha de cima.
+- Linha formada só por números e sinais (o ano sozinho, com ou sem ponto
+  final, ou uma data com barra ou sem o zero à esquerda) é tratada como data
+  mal escrita e interrompe a atualização. Por isso os rótulos de ano começam
+  com a palavra "Ano".
+
+Também interrompem a atualização: data repetida (mesmo em seções
+diferentes), data inexistente (por exemplo, dia 31 num mês de 30 dias),
+data na seção errada e arquivo sem nenhuma data. Um feriado fixo no dia
+de 29 de fevereiro só valeria nos anos bissextos.
+
+Codificação: salvar em UTF-8 (com ou sem BOM). UTF-16, ou ANSI (Windows-1252)
+com acentos, são rejeitados. Quebra de linha do Windows (CRLF) ou do Linux
+(LF) funcionam igual.
+
+
+COMO CADASTRAR UM NOVO ANO
+
+Quando o TCU publicar a Portaria do ano novo:
+
+- Feriados Fixos: nada a fazer; já valem para o ano novo. Só mude se a
+  Portaria trouxer um feriado nacional fixo novo.
+- Nas outras duas seções, acrescente um rótulo "Ano de AAAA." e, abaixo dele,
+  as datas daquele ano, cada uma na seção que a Portaria indicar (feriado
+  nacional de data variável ou ponto facultativo).
+- Portaria que altere o calendário durante o ano: incluir, corrigir ou apagar
+  a data correspondente.
+- Um ano sem datas cadastradas NÃO dá erro: o cálculo segue só com os
+  feriados fixos e trata como dia útil a Paixão de Cristo e os pontos
+  facultativos daquele ano. Cadastre o ano antes que os chamados dele entrem
+  nos indicadores.
+- Não cadastre ano futuro antes de a Portaria ser publicada.
+- Não apague anos anteriores: chamados antigos continuam sendo calculados com
+  eles.
+
+
+COMO O POWER BI USA ESTE ARQUIVO
+
+- O relatório lê a cópia deste arquivo guardada no SharePoint, no endereço
+  configurado em SharePointFeriadosUrl, no início da consulta .m.
+- A cada atualização do relatório, o arquivo é lido de novo, validado e
+  enviado ao SQL como lista de datas. Não é preciso mudar o SQL nem
+  republicar o relatório: basta salvar o arquivo e atualizar.
+- As consultas executadas pelo repositório (tools/executar_consulta.ps1) leem
+  a cópia docs/feriados.txt. Todas as cópias (SharePoint, docs/feriados.txt
+  da Virtual TI, da Decision e da A2B, e Documentos e Relatórios/feriados.txt)
+  devem ser idênticas; o tools/verificar_feriados.ps1 confere.
+
+
+O QUE FAZ A ATUALIZAÇÃO FALHAR
+
+Qualquer um destes problemas interrompe a atualização com uma mensagem que
+indica a linha. O relatório nunca é calculado com zero feriados.
+
+- endereço do SharePoint não preenchido, ou arquivo inacessível;
+- arquivo vazio, sem nenhuma data, ou fora de UTF-8;
+- título de seção desconhecido;
+- data fora do formato, inexistente, repetida ou na seção errada;
+- linha só com números e sinais que não seja uma data válida.
 
 
 ## Feriados Fixos
 
-Feriados que se repetem todos os anos.
-Formato: DD-MM.
+Feriados nacionais que caem no mesmo dia todo ano.
+Formato: DD-MM (sem ano).
 
 01-01
 21-04
@@ -42,8 +142,8 @@ Formato: DD-MM.
 
 ## Feriados móveis/diferenciados
 
-Feriados cuja data muda de ano para ano ou que precisam ser cadastrados
-especificamente para determinado ano (Paixão de Cristo).
+Datas que a Portaria do TCU classifica como feriado nacional, mas cujo dia
+muda a cada ano (hoje, só a Paixão de Cristo). Cadastrar ano a ano.
 Formato: DD-MM-AAAA.
 
 Ano de 2025.
@@ -55,10 +155,10 @@ Ano de 2026.
 
 ## Pontos Facultativos
 
-Pontos facultativos definidos pelo TCU para o ano informado (Carnaval,
-Quarta-Feira de Cinzas, Corpus Christi, emendas, vésperas, Dia do
-Servidor e datas extraordinárias).
-Não se repetem automaticamente nos anos seguintes.
+Dias que a Portaria do TCU de cada ano define como ponto facultativo
+(Carnaval, Quarta-Feira de Cinzas, Corpus Christi, emendas, vésperas, Dia
+do Servidor Público e datas extraordinárias). Não se repetem
+automaticamente nos anos seguintes: cadastrar ano a ano.
 Formato: DD-MM-AAAA.
 
 Ano de 2025.

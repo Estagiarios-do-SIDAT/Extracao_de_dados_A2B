@@ -282,15 +282,17 @@ O bloco `[S.2]` do SQL recebe a lista no parâmetro `@Feriados`, valida e monta 
 | Estrutura | O que guarda | Data no arquivo (seção) |
 |---|---|---|
 | `#PBI_FeriadosFixos` | Feriados que caem sempre no mesmo dia, todo ano | `DD-MM` em `## Feriados Fixos` — ex.: `25-12` |
-| `#PBI_FeriadosPorData` | Feriados móveis/diferenciados, feriados por data e pontos facultativos do TCU | `DD-MM-AAAA` nas seções com ano — ex.: `05-06-2026` |
+| `#PBI_FeriadosPorData` | Feriado nacional de data variável (Paixão de Cristo) e pontos facultativos do TCU | `DD-MM-AAAA` em `## Feriados móveis/diferenciados` ou `## Pontos Facultativos` — ex.: `05-06-2026` |
 
 A diferença é só essa: o que se repete todo ano entra **uma vez** como `DD-MM` e vale para sempre; o que muda de data a cada ano (Carnaval, Paixão de Cristo, emendas) entra como `DD-MM-AAAA`, **ano a ano**. O script e o `.m` convertem para o formato do SQL (`MM-DD`, `AAAA-MM-DD`) antes de enviar `@Feriados`.
 
 O que entra em cada lista:
 
 - **feriados nacionais fixos** — Confraternização Universal, Tiradentes, Dia do Trabalho, Independência, Nossa Senhora Aparecida, Finados, Proclamação da República, Consciência Negra e Natal;
-- **feriados móveis** — Carnaval, Paixão de Cristo, Páscoa, Corpus Christi;
-- **pontos facultativos do TCU** — emendas de feriado, véspera de Natal e de Ano-Novo, e os dias de Carnaval e Quarta-Feira de Cinzas.
+- **feriado nacional de data variável** (`## Feriados móveis/diferenciados`) — Paixão de Cristo;
+- **pontos facultativos do TCU** (`## Pontos Facultativos`) — Carnaval, Quarta-Feira de Cinzas, Corpus Christi, emendas de feriado, véspera de Natal e de Ano-Novo, Dia do Servidor Público e datas extraordinárias.
+
+A seção segue a classificação da Portaria do TCU (feriado nacional ou ponto facultativo), e não o fato de a data mudar a cada ano: Carnaval e Corpus Christi também mudam de data, mas a Portaria os define como ponto facultativo. As duas seções têm o mesmo efeito no cálculo. A Páscoa cai sempre num domingo e não precisa de cadastro.
 
 **Sábados e domingos não devem ser cadastrados.** A consulta já os descarta sozinha, pelo dia da semana. Cadastrar um fim de semana não muda o resultado, só polui a lista.
 
@@ -468,6 +470,51 @@ o painel lê. Mantenha as duas iguais, e também as cópias dos outros
 repositórios e de `Documentos e Relatórios/feriados.txt`; o
 `tools/verificar_feriados.ps1` confere.
 
+**Do arquivo às datas (contrato de leitura).** As regras completas estão no
+próprio `feriados.txt`, na parte *Formato obrigatório do arquivo para Power
+Query e validadores*. O `.m` e o `tools/feriados.ps1` aplicam as mesmas regras
+e dão o mesmo resultado para o mesmo arquivo:
+
+1. O `.m` baixa o arquivo com `Web.Contents(SharePointFeriadosUrl)` e o lê como
+   texto UTF-8 (com ou sem BOM). UTF-16, ou bytes que não sejam UTF-8 válido
+   (um arquivo ANSI com acentos, por exemplo), interrompem a atualização. As
+   linhas podem terminar em CRLF ou LF.
+2. Cada linha, sem os espaços das pontas, é classificada:
+
+| Linha (exemplo) | Como é lida |
+|---|---|
+| `## Pontos Facultativos` | título de uma das três seções; maiúsculas, acentos e espaços a mais no nome não importam |
+| `## Observações`, `### Notas` | qualquer linha que comece com `##` é título: se o nome não for uma das três seções, **erro** |
+| `25-12` | feriado fixo, só em `## Feriados Fixos`; vale para o mesmo dia e mês de todos os anos |
+| `04-06-2026` | data com ano, só em `## Feriados móveis/diferenciados` ou `## Pontos Facultativos`; vale só nesse dia |
+| `Ano de 2026.`, linha vazia, parágrafo de texto | ignorada |
+| `04-06-2026 Corpus Christi` | **ignorada sem erro**: a data fica fora do calendário |
+| `2026.`, `04/06/2026`, `4-6-2026`, `2026-06-04` | só números e sinais, mas fora do formato: **erro** |
+| `31-04-2026`; data repetida, mesmo em outra seção; data na seção errada | **erro** |
+
+3. Qualquer erro, ou um arquivo sem nenhuma data, faz a etapa `Fonte` falhar
+   com a mensagem `Feriados: ...` e o número de cada linha com problema. O SQL
+   nem chega a ser executado.
+4. Sem erro, a lista vai ao SQL no parâmetro `@Feriados`, em JSON (`DD-MM` →
+   `MM-DD`, `DD-MM-AAAA` → `AAAA-MM-DD`). O SQL confere o formato de novo e
+   monta duas listas: os dias e meses que valem todo ano e as datas que valem
+   só uma vez.
+5. No cálculo, cada dia de uma das duas listas fica inteiro fora do Horário TCU.
+   A contagem 24x7 soma todas as horas, inclusive fins de semana e feriados,
+   então o calendário não a altera.
+
+Um ano sem nenhuma data com ano cadastrada **não** dá erro: nesse ano só os
+feriados fixos saem do Horário TCU, e a Paixão de Cristo e os pontos
+facultativos contam como dias úteis. Por isso o ano novo precisa ser
+cadastrado assim que a Portaria for publicada.
+
+O arquivo é lido de novo a cada atualização do conjunto de dados (manual no
+Desktop ou agendada no serviço). Para valer um calendário novo, basta salvar o
+`feriados.txt` no SharePoint e atualizar: o SQL, o `.m` e o relatório
+publicado não mudam.
+
+Onde o calendário pesa neste projeto: P3, P4 e P5 contam no Horário TCU (no SQL, `COMERCIAL`) e perdem os dias cadastrados; P1 e P2 contam 24x7 (no SQL, `CORRIDA`) e não mudam. Detalhes na [seção 10](#10-feriados-e-pontos-facultativos).
+
 **Onde trocar o link.** Para trocar o endereço do SharePoint, altere apenas
 `SharePointFeriadosUrl`. É a primeira linha depois de `let` no `.m`, dentro do
 bloco `CONFIGURACAO - SHAREPOINT`; o endereço não aparece em nenhum outro lugar
@@ -512,7 +559,9 @@ a linha do arquivo): link não preenchido; arquivo inacessível (ex.: 404);
 arquivo vazio ou fora de UTF-8; data inexistente (`31-02-2026`); linha que
 parece data fora do formato (`2026-04-03`, `3-4-2026`); data repetida; data
 fora da seção certa; seção diferente das três do arquivo; arquivo sem nenhuma
-data. O relatório nunca é calculado com zero feriados.
+data. O relatório nunca é calculado com zero feriados. Atenção: uma data com
+texto na mesma linha **não** interrompe a atualização; ela é ignorada (tabela
+acima).
 
 **Primeiro refresh (checklist).**
 
