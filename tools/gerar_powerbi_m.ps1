@@ -9,8 +9,12 @@
 
     O calculo do Horario TCU acontece no SQL Server, que nao le o SharePoint.
     O codigo M gerado:
-      1. le o calendario feriados.txt no SharePoint (Web.Contents, URL direta,
-         configurada so em SharePointFeriadosUrl, no topo do .m);
+      1. le o calendario feriados.txt no SharePoint pelo conector
+         SharePoint.Files (Conta organizacional), no site FIXO deste gerador
+         ($SiteConexao). A unica configuracao do .m e SharePointFeriadosLink,
+         o link do arquivo copiado do SharePoint: dele saem a pasta e o nome,
+         e fica o UNICO arquivo com esse nome nessa pasta (nenhum ou mais de
+         um e erro). O link nunca e aberto;
       2. valida cada linha com as regras de tools/feriados.ps1 e falha a
          atualizacao com mensagem clara em qualquer problema;
       3. envia a lista ao SQL como PARAMETRO @Feriados (JSON), sem concatenar
@@ -27,8 +31,25 @@
     A primeira versao tinha um passo por etapa, e o firewall de privacidade do
     Power Query (Formula.Firewall) recusava a combinacao do SharePoint com o
     SQL mesmo com as duas fontes como Organizacional. Num passo so, as duas
-    fontes ficam na mesma particao. SharePointFeriadosUrl e so um texto e fica
+    fontes ficam na mesma particao. SharePointFeriadosLink e so texto e fica
     num passo proprio, no topo, para ser facil de trocar.
+
+    Power BI Service: o primeiro argumento de SharePoint.Files e um LITERAL
+    (o site), nunca montado a partir do link, para que o servico reconheca a
+    fonte de dados sem avalia-la (fonte dinamica impede a atualizacao
+    agendada). O link so filtra o resultado. Link de outro site e erro, em
+    vez de trocar a fonte.
+
+    Localizacao do arquivo: SharePoint.Files devolve TODOS os arquivos do site,
+    e o mesmo nome feriados.txt existe em mais de uma pasta (ha copias dentro
+    dos repositorios sincronizados). Por isso a selecao exige o nome E a pasta
+    ([Folder Path]); a pasta e comparada sem diferenca de maiusculas e da barra
+    final. Do link: Uri.Parts separa o caminho (sem o que vem depois de "?"),
+    o prefixo de compartilhamento "/:t:/r" e descartado e os %XX sao
+    decodificados em UTF-8 (Uri.Parts nao decodifica; testado). Link sem o
+    caminho do arquivo (/:t:/s/<id>) e erro: nao se adivinha a pasta. O link
+    nunca e aberto com Web.Contents: com ele o Power BI recusava a credencial
+    organizacional.
 
     O SQL entra no M como texto literal. Altere sempre o SQL-fonte e gere de
     novo; tools/verificar_feriados.ps1 acusa .m desatualizado.
@@ -42,6 +63,12 @@ param(
     [switch]$SomenteTexto
 )
 $ErrorActionPreference = 'Stop'
+
+# SharePoint do calendario. $SiteConexao entra LITERAL no SharePoint.Files do
+# .m (ver Power BI Service, acima); $LinkFeriados e o valor inicial de
+# SharePointFeriadosLink.
+$SiteConexao = 'https://tcucloud.sharepoint.com/sites/EstgioSidatTCU'
+$LinkFeriados = 'https://tcucloud.sharepoint.com/:t:/r/sites/EstgioSidatTCU/Documentos%20Compartilhados/Atividades%20Avulsas/Indicadores%20e%20Relat%C3%B3rios%20de%20Servi%C3%A7os/Documentos%20e%20Relat%C3%B3rios/feriados.txt?d=w3744a75ddc284a38890b5d9c4af44be3&csf=1&web=1&e=hwfUQM'
 
 $caminho = (Resolve-Path -LiteralPath $Consulta).Path
 $repo = Split-Path -Parent (Split-Path -Parent $caminho)
@@ -71,15 +98,17 @@ $m = @"
 // Nao edite este arquivo: altere o SQL-fonte e gere de novo.
 //
 // Uso (uma vez): Power Query > Pagina Inicial > Nova Fonte > Consulta Nula >
-// Editor Avancado > colar este arquivo inteiro. Depois, preencher
-// SharePointFeriadosUrl (logo abaixo de "let") com o link direto do arquivo
-// feriados.txt no SharePoint.
+// Editor Avancado > colar este arquivo inteiro. Credenciais: SharePoint com
+// Conta organizacional; SQL Server como hoje.
 //
-// Feriados: a cada atualizacao o arquivo e lido de novo. Ele e o mesmo para
-// Virtual TI, Decision e A2B (calendario do TCU). Qualquer problema (link nao
-// preenchido, arquivo inacessivel, codificacao invalida, data invalida ou
-// repetida, secao desconhecida, arquivo sem datas) FALHA a atualizacao com
-// mensagem; o relatorio nunca e calculado com zero feriados.
+// Feriados: a cada atualizacao o arquivo feriados.txt e lido de novo no
+// SharePoint (SharePoint.Files, site fixo), localizado pela pasta e pelo nome
+// tirados de SharePointFeriadosLink, logo abaixo de "let". Ele e o mesmo para
+// Virtual TI, Decision e A2B
+// (calendario do TCU). Qualquer problema (arquivo nao encontrado na pasta, mais
+// de um arquivo, codificacao invalida, data invalida ou repetida, secao
+// desconhecida, arquivo sem datas) FALHA a atualizacao com mensagem; o
+// relatorio nunca e calculado com zero feriados.
 //
 // Privacidade: SharePoint e SQL Server como Organizacional. Tudo fica num
 // unico passo (Fonte) para o firewall de privacidade avaliar as duas fontes na
@@ -87,12 +116,14 @@ $m = @"
 // =============================================================================
 let
     // ============================================================================
-    // CONFIGURACAO - SHAREPOINT
-    // Altere SOMENTE esta URL quando o arquivo feriados.txt mudar de local.
-    // Link direto do arquivo, por exemplo:
-    //   https://<empresa>.sharepoint.com/sites/<site>/Shared%20Documents/<pasta>/feriados.txt
+    // CONFIGURACAO - SHAREPOINT (calendario de feriados)
+    // Unico valor a editar: o link do feriados.txt copiado do SharePoint
+    // (Copiar link, ou o endereco com o arquivo aberto). O link NAO e aberto:
+    // dele saem so a pasta e o nome do arquivo. A leitura e feita por
+    // SharePoint.Files no site $SiteConexao, com Conta organizacional;
+    // link de outro site e erro.
     // ============================================================================
-    SharePointFeriadosUrl = "INSERIR_URL_DO_ARQUIVO_FERIADOS_NO_SHAREPOINT",
+    SharePointFeriadosLink = "$LinkFeriados",
 
     Fonte =
         let
@@ -105,10 +136,79 @@ let
             // nas secoes com ano; titulos, linhas vazias e paragrafos sao
             // ignorados. Saida para o SQL: MM-DD e AAAA-MM-DD.
             Falha = (mensagem as text) => error Error.Record("Feriados", mensagem),
+
+            // ---- Localizacao do arquivo no SharePoint ------------------------
+            // Site de conexao FIXO: o primeiro argumento de SharePoint.Files e
+            // literal (requisito da atualizacao agendada no Power BI Service).
+            SiteConexao = "$SiteConexao",
+            ArquivosSite = SharePoint.Files("$SiteConexao", [ApiVersion = 15]),
+
+            // Pasta e nome saem de SharePointFeriadosLink, que nunca e aberto.
+            // Uri.Parts separa o caminho (sem "?..."), mas nao decodifica %XX:
+            // DecodificarUrl junta os bytes de cada %XX e le tudo como UTF-8.
+            DecodificarUrl = (s as text) as text =>
+                let
+                    Pedacos = Text.Split(s, "%"),
+                    Bytes = List.Transform(List.Positions(Pedacos), (i) =>
+                        let p = Pedacos{i}, h = Text.Upper(Text.Start(p, 2)) in
+                        if i = 0 then Text.ToBinary(p, TextEncoding.Utf8)
+                        else if Text.Length(h) = 2 and Text.Length(Text.Select(h, {"0".."9", "A".."F"})) = 2 then
+                            Binary.Combine({Binary.FromText(h, BinaryEncoding.Hex), Text.ToBinary(Text.Range(p, 2), TextEncoding.Utf8)})
+                        else Falha("SharePointFeriadosLink tem um codigo %XX invalido.")),
+                    Texto = Text.FromBinary(Binary.Combine(Bytes), TextEncoding.Utf8)
+                in
+                    if Text.Contains(Texto, "#(FFFD)") then Falha("SharePointFeriadosLink tem caracteres codificados invalidos.") else Texto,
+            NormPasta = (p as text) as text =>
+                let t = Text.Lower(Text.Replace(Text.Trim(p), "%20", " ")) in
+                if Text.EndsWith(t, "/") then t else t & "/",
+            LocalDoLink =
+                let
+                    Partes = try Uri.Parts(Text.Trim(SharePointFeriadosLink)) otherwise null,
+                    SiteParte = Uri.Parts(SiteConexao),
+                    Segs0 = if Partes = null or Partes[Host] = "" then
+                                Falha("SharePointFeriadosLink nao e um endereco valido. Copie o link do feriados.txt no SharePoint.")
+                            else List.Select(Text.Split(DecodificarUrl(Partes[Path]), "/"), each _ <> ""),
+                    // Prefixo de compartilhamento "/:t:/r/" (t = tipo do arquivo, r = caminho).
+                    Compart = List.Count(Segs0) > 0 and Text.StartsWith(Segs0{0}, ":") and Text.EndsWith(Segs0{0}, ":"),
+                    Segs =
+                        if Compart and (List.Count(Segs0) < 2 or Text.Lower(Segs0{1}) <> "r") then
+                            Falha("SharePointFeriadosLink e um link de compartilhamento sem o caminho do arquivo (formato /" & Segs0{0}
+                                & "/" & (if List.Count(Segs0) > 1 then Segs0{1} else "") & "/...). Esse formato nao permite saber a pasta;"
+                                & " use o link com /:t:/r/sites/... ou o endereco do arquivo aberto no SharePoint.")
+                        else if Compart then List.Skip(Segs0, 2) else Segs0,
+                    SiteDoLink = Text.Lower(Partes[Scheme] & "://" & Partes[Host] & "/"
+                        & Text.Combine(List.FirstN(Segs, 2), "/")),
+                    SiteEsperado = Text.Lower(SiteParte[Scheme] & "://" & SiteParte[Host] & SiteParte[Path])
+                in
+                    if List.Count(Segs) < 4 then
+                        Falha("SharePointFeriadosLink nao traz o caminho completo do arquivo (site, biblioteca, pastas e nome).")
+                    else if SiteDoLink <> SiteEsperado then
+                        Falha("SharePointFeriadosLink aponta para outro site (" & SiteDoLink & "). O calendario so e lido do site "
+                            & SiteConexao & "; para usar outro site, altere o gerador (tools/gerar_powerbi_m.ps1) e gere o .m de novo.")
+                    else [
+                        Site = SiteConexao,
+                        Pasta = Partes[Scheme] & "://" & Partes[Host] & "/" & Text.Combine(List.RemoveLastN(Segs, 1), "/") & "/",
+                        Nome = List.Last(Segs)
+                    ],
+
+            // Fica o UNICO arquivo com o nome E a pasta do link; nenhum, ou mais
+            // de um, e erro (nunca se escolhe a primeira linha). A pasta e
+            // comparada sem diferenca de maiusculas e da barra final.
+            MesmoNome = Table.SelectRows(ArquivosSite, each Text.Lower([Name]) = Text.Lower(LocalDoLink[Nome])),
+            NaPasta = Table.SelectRows(MesmoNome, each NormPasta([Folder Path]) = NormPasta(LocalDoLink[Pasta])),
+            QtdNaPasta = Table.RowCount(NaPasta),
+            PastasComONome = Text.Combine(List.Transform(Table.Column(MesmoNome, "Folder Path"), each "[" & _ & "]"), " "),
             Conteudo =
-                if Text.Contains(SharePointFeriadosUrl, "INSERIR_") then
-                    Falha("Preencha SharePointFeriadosUrl com o link do arquivo feriados.txt no SharePoint.")
-                else Binary.Buffer(Web.Contents(SharePointFeriadosUrl)),
+                if QtdNaPasta = 0 then
+                    Falha("Arquivo '" & LocalDoLink[Nome] & "' nao encontrado na pasta do link [" & LocalDoLink[Pasta]
+                        & "]. Pastas do site com um arquivo desse nome: "
+                        & (if PastasComONome = "" then "nenhuma" else PastasComONome) & ".")
+                else if QtdNaPasta > 1 then
+                    Falha("Ha " & Text.From(QtdNaPasta) & " arquivos '" & LocalDoLink[Nome] & "' na pasta do link ["
+                        & LocalDoLink[Pasta] & "]; deve haver exatamente um.")
+                else Binary.Buffer(NaPasta{0}[Content]),
+
+            // ---- Interpretacao do arquivo (feriados.txt) ---------------------
             Utf16 = List.Contains({#binary({255, 254}), #binary({254, 255})}, Binary.Range(Conteudo, 0, 2)),
             TextoBruto =
                 if Utf16 then Falha("Arquivo de feriados com codificacao invalida (salve em UTF-8, nao UTF-16).")

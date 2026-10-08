@@ -100,7 +100,7 @@ Sem aspas duplas neste arquivo: pode ser colado dentro de uma medida DAX. -->
 </div>
 <ul style='margin-top:4px'>
 <li><b>Eventos no mesmo segundo:</b> são ordenados por act_log.id, a sequência de gravação do log. Isso torna o FARC estável entre atualizações; não troque esse desempate sem nova validação.</li>
-<li>O <b>link do arquivo de feriados</b> fica no início da consulta M, na variável <b>SharePointFeriadosUrl</b>: para trocar o endereço do SharePoint, altere apenas ela (link real ainda <b>pendente</b>); o conteúdo do arquivo se edita direto no SharePoint.</li>
+<li>O <b>arquivo de feriados</b> é lido no SharePoint pelo conector SharePoint.Files, com <b>Conta organizacional</b>, num site fixo. A única configuração é <b>SharePointFeriadosLink</b>, no início da consulta M: o link do feriados.txt copiado do SharePoint, de onde saem a pasta e o nome (o link não é aberto). A consulta exige exatamente um arquivo com esse nome nessa pasta. O conteúdo do arquivo se edita direto no SharePoint, sem mexer na consulta; publicar no repositório não atualiza o SharePoint.</li>
 <li>A consulta fica incorporada ao relatório: a alteração vale na próxima atualização. Há um repositório interno, de versionamento e manutenção técnica, mantido pela equipe responsável.</li>
 </ul>
 

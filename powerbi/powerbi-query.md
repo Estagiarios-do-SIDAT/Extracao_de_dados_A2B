@@ -68,13 +68,13 @@ O SQL não é mais colado em **Instrução SQL**: os feriados vêm de um arquivo
 
 1. **Página Inicial → Nova Fonte → Consulta Nula → Editor Avançado.**
 2. Cole o conteúdo inteiro de `consulta_faia_farc_power_bi.m`.
-3. Preencha `SharePointFeriadosUrl` (no topo do `.m`) com o link direto do `feriados.txt` no SharePoint (o mesmo da Virtual TI e da Decision; ver [seção 14](#14-feriados-e-sharepoint)).
+3. Confira `SharePointFeriadosLink`, no topo do `.m`: o link do `feriados.txt` oficial no SharePoint, já preenchido (ver [seção 14](#14-feriados-e-sharepoint)).
 4. Credenciais: SQL Server como hoje; SharePoint com **conta organizacional**. Privacidade das duas fontes: **Organizacional**. No gateway, permitir fontes de nuvem.
 5. Carregue e, na primeira vez, confira a quantidade de chamados (ver [seção 11](#11-conferência)).
 6. Nas próximas vezes, basta **Atualizar**: o período se ajusta sozinho (ver [seção 5](#5-período-da-consulta)) e o arquivo de feriados é lido de novo.
 7. Na primeira atualização depois de qualquer mudança no texto SQL, o Power BI pede para **aprovar a execução da consulta nativa**. Isso é esperado.
 
-Não é preciso ajustar datas a cada mês. Arquivo de feriados inacessível, placeholder não preenchido ou linha inválida **falham a atualização** com mensagem; o painel nunca é calculado sem feriados. Requisitos do serviço e checklist do primeiro refresh na [seção 14](#14-feriados-e-sharepoint).
+Não é preciso ajustar datas a cada mês. Arquivo de feriados não encontrado na pasta configurada, sem acesso ou com linha inválida **falham a atualização** com mensagem; o painel nunca é calculado sem feriados. Requisitos do serviço e checklist do primeiro refresh na [seção 14](#14-feriados-e-sharepoint).
 
 ---
 
@@ -275,7 +275,7 @@ Um chamado pode atender o FAIA (alguém pegou em 5 minutos) e estourar o FARC (s
 
 ## 10. Feriados e pontos facultativos
 
-A lista de datas que **não** são dias úteis fica no **calendário** `feriados.txt`, e não no SQL: no SharePoint para o painel, lido a cada atualização, e em `docs/feriados.txt` para as consultas individuais. É o calendário do TCU, o mesmo para Virtual TI, Decision e A2B (não há lista por projeto). Regras de preenchimento no próprio [`docs/feriados.txt`](../docs/feriados.txt); falhas e SharePoint na [seção 14](#14-feriados-e-sharepoint). A lista é usada só no **calendário comercial** (P3, P4 e P5). Chamados **P1 e P2 contam corrido** e ignoram essa lista por completo.
+A lista de datas que **não** são dias úteis fica no **calendário** `feriados.txt`, e não no SQL: no SharePoint para o painel, lido a cada atualização, e em `docs/feriados.txt` para as consultas individuais. É o calendário do TCU, o mesmo para Virtual TI, Decision e A2B (não há lista por projeto). Formato do arquivo, cadastro de um ano novo, falhas e SharePoint na [seção 14](#14-feriados-e-sharepoint). A lista é usada só no **calendário comercial** (P3, P4 e P5). Chamados **P1 e P2 contam corrido** e ignoram essa lista por completo.
 
 O bloco `[S.2]` do SQL recebe a lista no parâmetro `@Feriados`, valida e monta **duas** tabelas, e o FAIA e o FARC usam **as mesmas duas** — não existe um calendário para cada indicador:
 
@@ -414,7 +414,7 @@ de feriados no SharePoint.
 3. **Página Inicial → Editor Avançado.** O SQL está no texto `SqlTexto`.
 4. Depois de editar: **Concluído → Fechar e aplicar**. Na primeira atualização o Power BI pede para **aprovar a consulta nativa** — aprove.
 
-O caminho recomendado é alterar `queries/consulta_faia_farc_painel.sql` no repositório, gerar o `.m` de novo (`.\tools\gerar_powerbi_m.ps1 -Consulta .\queries\consulta_faia_farc_painel.sql -Saida .\powerbi\consulta_faia_farc_power_bi.m`) e colar o `.m` inteiro no Editor Avançado, preenchendo de novo `SharePointFeriadosUrl`. O `.m` gerado é versionado no repositório.
+O caminho recomendado é alterar `queries/consulta_faia_farc_painel.sql` no repositório, gerar o `.m` de novo (`.\tools\gerar_powerbi_m.ps1 -Consulta .\queries\consulta_faia_farc_painel.sql -Saida .\powerbi\consulta_faia_farc_power_bi.m`) e colar o `.m` inteiro no Editor Avançado. O `.m` gerado é versionado no repositório.
 
 ### Mudar a quantidade de ciclos
 
@@ -457,29 +457,47 @@ Sem mexer no SQL nem republicar o relatório:
 
 ## 14. Feriados e SharePoint
 
-O cálculo do Horário TCU é feito no SQL Server, que **não lê** o SharePoint.
-A consulta do Power BI (`.m`) lê o calendário `feriados.txt` do SharePoint a
-cada atualização, valida todas as linhas, converte as datas para o formato do
-SQL (`DD-MM` → `MM-DD`, `DD-MM-AAAA` → `AAAA-MM-DD`) e envia a lista ao SQL no
-parâmetro `@Feriados` (JSON). Nenhum texto do arquivo é concatenado no SQL.
+O calendário de feriados e pontos facultativos do TCU fica no arquivo
+`feriados.txt`, e não no SQL. É o mesmo para Virtual TI, Decision e A2B. Esta
+seção é a referência completa do arquivo e da leitura pelo Power BI; o próprio
+arquivo traz só um resumo de cinco linhas, para que as datas fiquem logo no
+início.
 
-**Qual arquivo.** O calendário é o `feriados.txt`, o mesmo para Virtual TI,
-Decision e A2B. A cópia versionada é [`docs/feriados.txt`](../docs/feriados.txt)
-(as regras de preenchimento estão no próprio arquivo); a do SharePoint é a que
-o painel lê. Mantenha as duas iguais, e também as cópias dos outros
-repositórios e de `Documentos e Relatórios/feriados.txt`; o
-`tools/verificar_feriados.ps1` confere.
+### Para que serve
 
-**Do arquivo às datas (contrato de leitura).** As regras completas estão no
-próprio `feriados.txt`, na parte *Formato obrigatório do arquivo para Power
-Query e validadores*. O `.m` e o `tools/feriados.ps1` aplicam as mesmas regras
-e dão o mesmo resultado para o mesmo arquivo:
+- **Horário TCU:** conta de segunda a sexta, das 08:00 às 20:00. Cada data do
+  calendário sai **inteira** do Horário TCU (não existe meio expediente).
+  Sábado e domingo já ficam de fora sem cadastro; por isso a Páscoa, que é
+  sempre num domingo, não aparece no arquivo.
+- **24x7:** soma todas as horas, inclusive fins de semana, feriados e pontos
+  facultativos. O calendário não altera a contagem 24x7.
+- **Fonte das datas:** só a Portaria do TCU que "divulga os feriados nacionais e
+  define os dias de ponto facultativo" do ano, publicada no Boletim do TCU, e
+  todas as Portarias que a alterarem (`pesquisa.apps.tcu.gov.br`, base
+  **Normas**; a ficha da Portaria anual lista as alterações em "Alterada por").
+  Não entram feriados estaduais, municipais ou de outros órgãos.
 
-1. O `.m` baixa o arquivo com `Web.Contents(SharePointFeriadosUrl)` e o lê como
-   texto UTF-8 (com ou sem BOM). UTF-16, ou bytes que não sejam UTF-8 válido
-   (um arquivo ANSI com acentos, por exemplo), interrompem a atualização. As
-   linhas podem terminar em CRLF ou LF.
-2. Cada linha, sem os espaços das pontas, é classificada:
+### As três seções
+
+| Seção (título literal no arquivo) | O que guarda | Formato | Vale |
+|---|---|---|---|
+| `## Feriados Fixos` | feriados nacionais que caem sempre no mesmo dia | `DD-MM` | todo ano |
+| `## Feriados móveis/diferenciados` | datas que a Portaria classifica como **feriado nacional**, mas cujo dia muda a cada ano (hoje, só a Paixão de Cristo) | `DD-MM-AAAA` | só naquele dia |
+| `## Pontos Facultativos` | dias que a Portaria define como **ponto facultativo**: Carnaval, Quarta-Feira de Cinzas, Corpus Christi, emendas, vésperas, Dia do Servidor Público e datas extraordinárias | `DD-MM-AAAA` | só naquele dia |
+
+A seção segue a **classificação da Portaria**, e não o fato de a data mudar de
+um ano para outro: Carnaval e Corpus Christi também mudam de data, mas a
+Portaria-TCU nº 1/2026, por exemplo, os define como ponto facultativo e a
+Paixão de Cristo como feriado nacional. As duas seções com ano têm o mesmo
+efeito no cálculo; a separação serve para conferir o arquivo contra a
+Portaria.
+
+### Formato do arquivo (contrato de leitura)
+
+O `.m` do Power BI e o `tools/feriados.ps1` (usado pelo
+`verificar_feriados.ps1` e pelo `executar_consulta.ps1`) aplicam as mesmas
+regras e dão o mesmo resultado para o mesmo arquivo. Cada linha, sem os espaços
+das pontas, é classificada assim:
 
 | Linha (exemplo) | Como é lida |
 |---|---|
@@ -487,97 +505,207 @@ e dão o mesmo resultado para o mesmo arquivo:
 | `## Observações`, `### Notas` | qualquer linha que comece com `##` é título: se o nome não for uma das três seções, **erro** |
 | `25-12` | feriado fixo, só em `## Feriados Fixos`; vale para o mesmo dia e mês de todos os anos |
 | `04-06-2026` | data com ano, só em `## Feriados móveis/diferenciados` ou `## Pontos Facultativos`; vale só nesse dia |
-| `Ano de 2026.`, linha vazia, parágrafo de texto | ignorada |
-| `04-06-2026 Corpus Christi` | **ignorada sem erro**: a data fica fora do calendário |
-| `2026.`, `04/06/2026`, `4-6-2026`, `2026-06-04` | só números e sinais, mas fora do formato: **erro** |
+| `Ano de 2026.`, linha vazia, frase de texto | ignorada |
+| `04-06-2026 Corpus Christi` | **ignorada sem erro**: a data fica fora do calendário sem aviso |
+| `2026.`, `04/06/2026`, `4-6-2026`, `2026-06-04` | só números e sinais, fora do formato: **erro** |
 | `31-04-2026`; data repetida, mesmo em outra seção; data na seção errada | **erro** |
 
-3. Qualquer erro, ou um arquivo sem nenhuma data, faz a etapa `Fonte` falhar
-   com a mensagem `Feriados: ...` e o número de cada linha com problema. O SQL
-   nem chega a ser executado.
-4. Sem erro, a lista vai ao SQL no parâmetro `@Feriados`, em JSON (`DD-MM` →
-   `MM-DD`, `DD-MM-AAAA` → `AAAA-MM-DD`). O SQL confere o formato de novo e
-   monta duas listas: os dias e meses que valem todo ano e as datas que valem
-   só uma vez.
-5. No cálculo, cada dia de uma das duas listas fica inteiro fora do Horário TCU.
-   A contagem 24x7 soma todas as horas, inclusive fins de semana e feriados,
-   então o calendário não a altera.
+Por isso:
+
+- **escreva cada data sozinha na linha**; um comentário vai na linha de cima;
+- **o rótulo de ano começa com a palavra "Ano"** (`Ano de 2027.`). A linha
+  `2027.` sozinha interrompe a atualização;
+- não renomeie, traduza nem crie títulos de seção;
+- salve em **UTF-8** (com ou sem BOM). UTF-16, ou ANSI (Windows-1252) com
+  acentos, são rejeitados. Quebras de linha CRLF ou LF funcionam igual;
+- o arquivo precisa ter pelo menos uma data;
+- um feriado fixo em `29-02` só valeria nos anos bissextos.
 
 Um ano sem nenhuma data com ano cadastrada **não** dá erro: nesse ano só os
 feriados fixos saem do Horário TCU, e a Paixão de Cristo e os pontos
-facultativos contam como dias úteis. Por isso o ano novo precisa ser
-cadastrado assim que a Portaria for publicada.
+facultativos contam como dias úteis. Por isso o ano novo precisa ser cadastrado
+assim que a Portaria for publicada.
 
-O arquivo é lido de novo a cada atualização do conjunto de dados (manual no
-Desktop ou agendada no serviço). Para valer um calendário novo, basta salvar o
-`feriados.txt` no SharePoint e atualizar: o SQL, o `.m` e o relatório
-publicado não mudam.
+### Onde ficam as cópias
 
-Onde o calendário pesa neste projeto: P3, P4 e P5 contam no Horário TCU (no SQL, `COMERCIAL`) e perdem os dias cadastrados; P1 e P2 contam 24x7 (no SQL, `CORRIDA`) e não mudam. Detalhes na [seção 10](#10-feriados-e-pontos-facultativos).
+| Cópia | Quem usa |
+|---|---|
+| SharePoint, site `EstgioSidatTCU`, biblioteca *Documentos Compartilhados*, pasta `Atividades Avulsas/Indicadores e Relatórios de Serviços/Documentos e Relatórios/` | **o Power BI** (os três relatórios) |
+| `docs/feriados.txt` dos repositórios Virtual TI, Decision e A2B | consultas executadas pelo repositório (`tools/executar_consulta.ps1`) e o verificador |
+| `Documentos e Relatórios/feriados.txt` (pasta de trabalho, fora do Git) | referência; conferida pelo verificador |
 
-**Onde trocar o link.** Para trocar o endereço do SharePoint, altere apenas
-`SharePointFeriadosUrl`. É a primeira linha depois de `let` no `.m`, dentro do
-bloco `CONFIGURACAO - SHAREPOINT`; o endereço não aparece em nenhum outro lugar
-do arquivo:
+As cópias do repositório e a de `Documentos e Relatórios` devem ser idênticas;
+o `tools/verificar_feriados.ps1` confere. **Publicar no GitHub não atualiza o
+SharePoint**, e editar no SharePoint não atualiza o repositório: as duas pontas
+são atualizadas à mão. O mesmo site também guarda cópias sincronizadas dos
+repositórios (`Repositórios/Extracao_de_dados_*/docs/feriados.txt`); o Power BI
+não as lê, porque a consulta exige a pasta do link.
+
+### Cadastrar um ano novo ou alterar datas
+
+1. Confirme as datas na Portaria do ano (e nas que a alterarem).
+2. Edite o `docs/feriados.txt` de um dos repositórios:
+   - **Feriados Fixos:** nada a fazer; já valem para o ano novo (só muda se a
+     Portaria criar um feriado nacional fixo novo);
+   - nas outras duas seções, acrescente `Ano de AAAA.` e, abaixo, as datas do
+     ano, cada uma na seção que a Portaria indicar;
+   - Portaria que altere o calendário durante o ano: incluir, corrigir ou
+     apagar a data;
+   - não cadastre ano futuro antes da Portaria; não apague anos anteriores
+     (chamados antigos continuam sendo calculados com eles).
+3. Copie o arquivo para o `docs/feriados.txt` dos outros dois repositórios e
+   para `Documentos e Relatórios/feriados.txt`.
+4. Valide em qualquer um dos repositórios: `.\tools\verificar_feriados.ps1`.
+   Ele lê o arquivo com as regras acima, mostra quantas datas há por seção e
+   por ano, compara as cópias e confere se o `.m` está em dia.
+5. **Substitua o `feriados.txt` na pasta do SharePoint** (mesmo nome, mesma
+   pasta) pelo arquivo validado.
+6. Atualize o relatório no Power BI. Não é preciso mudar o SQL, gerar o `.m` de
+   novo nem republicar o relatório.
+7. Registre a Portaria (número e código de autenticidade) no histórico do
+   projeto (`project-context/`).
+
+### Como o Power BI lê o calendário
+
+O cálculo do Horário TCU é feito no SQL Server, que não lê o SharePoint. A
+consulta do Power BI (`.m`) faz a leitura e entrega a lista ao SQL. A **única
+configuração** fica no topo do `.m`, logo abaixo de `let`: o link do
+`feriados.txt` copiado do SharePoint (*Copiar link*, ou o endereço com o
+arquivo aberto).
 
 ```powerquery
-SharePointFeriadosUrl = "INSERIR_URL_DO_ARQUIVO_FERIADOS_NO_SHAREPOINT",
+SharePointFeriadosLink = "https://tcucloud.sharepoint.com/:t:/r/sites/EstgioSidatTCU/Documentos%20Compartilhados/Atividades%20Avulsas/Indicadores%20e%20Relat%C3%B3rios%20de%20Servi%C3%A7os/Documentos%20e%20Relat%C3%B3rios/feriados.txt?d=w3744a75ddc284a38890b5d9c4af44be3&csf=1&web=1&e=hwfUQM",
 ```
 
-**PENDENTE DO LINK REAL DO SHAREPOINT.** O endereço definitivo do
-`feriados.txt` ainda não foi registrado (2026-10-07: nenhum link do arquivo
-foi encontrado nos repositórios nem em `Documentos e Relatórios`). Enquanto o
-placeholder estiver no `.m`, a atualização falha com *Preencha
-SharePointFeriadosUrl...*. Use o link **direto** do arquivo, no formato
-`https://<empresa>.sharepoint.com/sites/<site>/Shared%20Documents/<pasta>/feriados.txt`
-(no SharePoint: `...` do arquivo > *Detalhes* > *Caminho*; tirar o final
-`?web=1`, se houver; o link de compartilhamento `/:t:/r/...` não serve), o
-mesmo nos três relatórios. Ao gerar o `.m` de novo, o placeholder volta: troque
-de novo, ou registre o link definitivo no `tools/gerar_powerbi_m.ps1` (único
-ponto, comum aos três repositórios).
+1. **O link não é aberto.** Ele serve só para identificar o arquivo: o `.m`
+   separa o caminho com `Uri.Parts` (o que vem depois de `?` é descartado),
+   tira o prefixo de compartilhamento `/:t:/r`, decodifica os `%XX`
+   (`%20` → espaço, `%C3%B3` → `ó`...) e obtém a pasta e o nome:
 
-**Configuração no Power BI.**
+   | Extraído do link | Valor |
+   |---|---|
+   | Site | `https://tcucloud.sharepoint.com/sites/EstgioSidatTCU` |
+   | Pasta | `https://tcucloud.sharepoint.com/sites/EstgioSidatTCU/Documentos Compartilhados/Atividades Avulsas/Indicadores e Relatórios de Serviços/Documentos e Relatórios/` |
+   | Nome | `feriados.txt` |
 
-- **Privacidade:** SharePoint e SQL Server como **Organizacional**. Com uma das
-  fontes Privada ou Pública, ou sem nível definido, o Power Query recusa a
-  combinação. Não é preciso (nem recomendado) ignorar os níveis de
-  privacidade.
-- **Credenciais:** SQL Server como hoje (Windows/gateway); SharePoint com
-  *Conta organizacional*.
-- **Gateway:** o SQL Server é local e o SharePoint Online é fonte de nuvem; a
-  consulta combina as duas e é avaliada no gateway: habilitar *Permitir que as
-  fontes de dados de nuvem do usuário sejam atualizadas por este cluster de
-  gateway*.
-- **Consulta nativa:** no Desktop, aprovar a execução da consulta nativa na
-  primeira vez (e a cada mudança do SQL).
-- **Formula.Firewall:** a leitura do SharePoint e o SQL ficam num único passo
-  (`Fonte`); não separe os passos. `SharePointFeriadosUrl` é só um texto e
-  pode ficar no topo.
+2. **A leitura é feita por `SharePoint.Files`, num site fixo:**
 
-**Falhas que interrompem a atualização** (com a mensagem e, quando for o caso,
-a linha do arquivo): link não preenchido; arquivo inacessível (ex.: 404);
-arquivo vazio ou fora de UTF-8; data inexistente (`31-02-2026`); linha que
-parece data fora do formato (`2026-04-03`, `3-4-2026`); data repetida; data
-fora da seção certa; seção diferente das três do arquivo; arquivo sem nenhuma
-data. O relatório nunca é calculado com zero feriados. Atenção: uma data com
-texto na mesma linha **não** interrompe a atualização; ela é ignorada (tabela
+   ```powerquery
+   ArquivosSite = SharePoint.Files("https://tcucloud.sharepoint.com/sites/EstgioSidatTCU", [ApiVersion = 15]),
+   ```
+
+   O endereço é **literal** (vem do gerador, `tools/gerar_powerbi_m.ps1`), e
+   não montado a partir do link: o Power BI Service só agenda a atualização
+   de fontes que ele reconhece sem executar a consulta. A credencial é a
+   **Conta organizacional**. Um link de outro site, ou de outro domínio, é
+   erro; para usar outro site, altere `$SiteConexao` no gerador e gere os `.m`
+   de novo.
+3. Ficam só os arquivos com o **nome e a pasta** do link (coluna
+   `[Folder Path]`; sem diferença de maiúsculas e da barra final). O site tem
+   outras cópias com o mesmo nome (dentro de
+   `Repositórios/Extracao_de_dados_*/docs/`); por isso a pasta é obrigatória.
+   Deve sobrar **exatamente um** arquivo. Nenhum: a atualização falha com a
+   lista das pastas do site que têm um arquivo com esse nome. Mais de um: a
+   atualização falha. Nunca se escolhe a primeira linha.
+4. O conteúdo (`[Content]`) é lido como UTF-8 e validado linha a linha com as
+   regras da tabela acima. Qualquer erro, ou nenhuma data, faz a etapa `Fonte`
+   falhar com `Feriados: ...` e o número da linha; o SQL nem é executado.
+5. A lista vai ao SQL no **parâmetro** `@Feriados`, em JSON (`DD-MM` → `MM-DD`,
+   `DD-MM-AAAA` → `AAAA-MM-DD`), por `Value.NativeQuery`. Nada do link nem do
+   arquivo é concatenado no SQL. O SQL confere o formato de novo e monta duas
+   listas: os dias e meses que valem todo ano e as datas que valem uma vez.
+
+**Quando mexer no link:** só se o `feriados.txt` mudar de pasta ou de nome
+(cole o link novo, do mesmo site). Trocar as datas dentro do mesmo arquivo não
+exige mudar o Power Query.
+
+**Links que não servem:** o link curto de compartilhamento
+(`https://tcucloud.sharepoint.com/:t:/s/<site>/<identificador>`) não traz o
+caminho do arquivo, e a consulta recusa (não se adivinha a pasta). O link
+nunca é aberto com `Web.Contents`: com ele, o Power BI Desktop recusou a
+credencial organizacional.
+
+### Configurar no Power BI Desktop
+
+1. Abra a consulta do relatório no Editor do Power Query e clique em
+   *Editor Avançado* (ou, para uma consulta nova: *Página Inicial → Nova
+   Fonte → Consulta Nula → Editor Avançado*). Substitua todo o texto pelo
+   `.m` inteiro. O `.m` não vai no campo *Instrução SQL*.
+2. Confira a linha `SharePointFeriadosLink`: deve ser o link do `feriados.txt`
+   oficial (pasta `Documentos e Relatórios`).
+3. Credenciais (*Arquivo → Opções e configurações → Configurações da fonte de
+   dados*):
+   - SharePoint (`https://tcucloud.sharepoint.com/sites/EstgioSidatTCU`, ou a
+     raiz do tenant): **Conta organizacional → Entrar**, com o usuário do TCU;
+   - SQL Server (`bdados-14r`, `mdb`): a mesma credencial de hoje.
+4. Privacidade das duas fontes: **Organizacional** (*Editar permissões* em
+   cada uma). Não desative os níveis de privacidade.
+5. *Atualizar visualização*. Na primeira vez (e a cada mudança do SQL),
+   aprovar a execução da consulta nativa.
+6. A consulta só carrega se encontrou exatamente um `feriados.txt` na pasta do
+   link e se o arquivo é válido. Se aparecer `Feriados: ...`, a mensagem diz o
+   motivo (link, pasta, linha do arquivo).
+
+**Formula.Firewall:** a leitura do SharePoint e o SQL ficam num único passo
+(`Fonte`); não separe os passos. `SharePointFeriadosLink` é só texto e pode
+ficar no topo.
+
+### Publicar e agendar no Power BI Service
+
+Roteiro para a equipe que publica os relatórios. **Esta configuração ainda não
+foi validada no serviço**; só uma atualização real bem-sucedida confirma.
+
+1. **Publicar:** no Power BI Desktop, com a consulta já atualizada sem erro,
+   *Página Inicial → Publicar* no workspace do relatório (substituindo o
+   conjunto de dados existente).
+2. **SharePoint Online:** no serviço, *conjunto de dados (modelo semântico) →
+   Configurações → Credenciais da fonte de dados* → fonte SharePoint
+   (`https://tcucloud.sharepoint.com/sites/EstgioSidatTCU`) → *Editar
+   credenciais*: método **OAuth2**, nível de privacidade **Organizacional**,
+   entrar com a conta institucional. A credencial é de quem a configura: se
+   essa conta perder o acesso ao site, a atualização falha.
+3. **SQL Server:** mantém a configuração atual (`bdados-14r`, `mdb`), pelo
+   gateway de dados local, com a mesma credencial e privacidade
+   **Organizacional**.
+4. **Gateway e nuvem:** a consulta combina o SharePoint (nuvem) e o SQL Server
+   (local) num único passo, então ela é avaliada pelo gateway. Em
+   *Gerenciar conexões e gateways*, no cluster do gateway, habilitar
+   *Permitir que as fontes de dados de nuvem do usuário sejam atualizadas por
+   este cluster de gateway*; nas configurações do conjunto de dados, mapear o
+   SQL Server para a conexão do gateway e o SharePoint para a conexão de nuvem
+   (OAuth2), conforme o ambiente oferecer.
+5. **Teste manual:** *Atualizar agora* e conferir o *Histórico de atualização*
+   (status *Concluído*). Conferir no relatório o número de chamados.
+6. **Atualização agendada:** configurar o agendamento e, depois da primeira
+   execução agendada, conferir de novo o histórico.
+7. **Erros comuns:**
+   - *contém uma fonte de dados dinâmica* / *não é possível atualizar*: alguém
+     trocou o endereço literal de `SharePoint.Files` ou de `Sql.Database` por
+     um valor calculado; gere o `.m` de novo pelo gerador;
+   - *credenciais inválidas / expiradas* na fonte SharePoint: refazer o login
+     OAuth2 (passo 2);
+   - *Formula.Firewall*: os passos da consulta foram separados; cole o `.m`
+     inteiro de novo;
+   - `Feriados: ...`: problema no link ou no conteúdo do arquivo (a mensagem
+     indica qual).
+
+### Falhas que interrompem a atualização
+
+Com a mensagem e, quando for o caso, a linha do arquivo:
+
+- credencial do SharePoint ausente ou sem acesso ao site;
+- `SharePointFeriadosLink` inválido, de outro site ou sem o caminho do arquivo
+  (link curto `/:t:/s/...`);
+- arquivo não encontrado na pasta do link, ou mais de um arquivo nela;
+- arquivo vazio, sem nenhuma data ou fora de UTF-8;
+- título de seção desconhecido;
+- data fora do formato, inexistente, repetida ou na seção errada;
+- linha só com números e sinais que não seja uma data válida.
+
+O relatório nunca é calculado com zero feriados. Atenção: uma data com texto na
+mesma linha **não** interrompe a atualização; ela é ignorada (ver o formato,
 acima).
 
-**Primeiro refresh (checklist).**
+### Onde o calendário pesa neste projeto
 
-1. Copiar `docs/feriados.txt` para a biblioteca do SharePoint escolhida.
-2. Criar a consulta a partir do `.m` (*Nova Fonte > Consulta Nula > Editor
-   Avançado*, colar o arquivo inteiro).
-3. Trocar o placeholder de `SharePointFeriadosUrl` pelo link direto.
-4. Credenciais, privacidade (Organizacional + Organizacional) e gateway, como
-   acima.
-5. Atualizar no Desktop e conferir número de linhas e totais de FAIA e FARC.
-6. Publicar e acompanhar o primeiro refresh agendado no serviço.
-7. Teste de manutenção: incluir no SharePoint uma data de teste num dia útil
-   recente, atualizar, ver as horas no Horário TCU mudarem, apagar a data e
-   atualizar de novo.
-
-O motor do Power BI Desktop desta máquina executou o `.m` com as duas fontes
-como Organizacional e o firewall ativo (arquivo servido por HTTP local). O
-acesso ao SharePoint Online real, o PBIX, o gateway e o refresh no serviço
-ainda dependem do ambiente.
+P3, P4 e P5 contam no Horário TCU (no SQL, `COMERCIAL`) e perdem os dias cadastrados; P1 e P2 contam 24x7 (no SQL, `CORRIDA`) e não mudam. Os dois indicadores (FAIA e FARC) usam o mesmo calendário. Lista por tipo de data e situação do cadastro na [seção 10](#10-feriados-e-pontos-facultativos).

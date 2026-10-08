@@ -75,7 +75,7 @@ A Protect4 tem dois grupos de arquivos, com finalidades diferentes.
 | `powerbi/consulta_faia_farc_power_bi.m` | **a consulta do Power BI** (a única; colada no Editor Avançado): lê o `feriados.txt` no SharePoint e executa o SQL abaixo |
 | `queries/consulta_faia_farc_painel.sql` | consulta de referência do painel: FAIA e FARC juntos. Fonte do `.m` (gerado por `tools/gerar_powerbi_m.ps1`) e usada em testes; não se cola no Power BI |
 
-Para trocar o endereço do SharePoint, altere apenas `SharePointFeriadosUrl`, no topo do `.m` (link real ainda **pendente**).
+O `.m` lê o `feriados.txt` pelo conector `SharePoint.Files` (Conta organizacional, site fixo). A única configuração é `SharePointFeriadosLink`, no topo do `.m`: o link do arquivo copiado do SharePoint, de onde saem a pasta e o nome.
 
 Ela:
 
@@ -104,7 +104,7 @@ pontos facultativos não ficam mais nos SQLs. Ficam no calendário
 `docs/feriados.txt` (cópia versionada, igual na Virtual TI, Decision e A2B) e no
 mesmo arquivo no SharePoint, lido pelo painel a cada atualização. É texto
 simples, em três seções: feriados fixos como `DD-MM` e datas de um ano como
-`DD-MM-AAAA` (as regras de preenchimento estão no próprio arquivo). Para incluir um feriado, basta editar o arquivo no SharePoint e
+`DD-MM-AAAA` (regras completas em [`powerbi/powerbi-query.md`](powerbi/powerbi-query.md), seção 14). Para incluir um feriado, basta editar o arquivo no SharePoint e
 salvar: não se muda o SQL nem se republica o relatório.
 
 ```text
