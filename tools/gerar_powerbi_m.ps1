@@ -224,8 +224,13 @@ let
                 s, (acc, par) => Text.Replace(acc, par{0}, par{1})),
             NomeSecao = (s as text) as text =>
                 Text.Combine(List.Select(Text.SplitAny(SemAcento(Text.Lower(Text.Trim(s))), " #(tab)"), each _ <> ""), " "),
+            // Formato novo: "Feriados Fixos" e "Feriados moveis/diferenciados e
+            // pontos facultativos". Formato antigo (retrocompatibilidade): as
+            // duas ultimas separadas. Misturar os formatos, ou repetir uma
+            // secao, e erro.
             Secoes = [
                 #"feriados fixos" = "Feriado fixo",
+                #"feriados moveis/diferenciados e pontos facultativos" = "Feriado m#(00F3)vel/diferenciado ou ponto facultativo",
                 #"feriados moveis/diferenciados" = "Feriado m#(00F3)vel/diferenciado",
                 #"pontos facultativos" = "Ponto facultativo"
             ],
@@ -242,15 +247,17 @@ let
                 if List.IsEmpty(anterior) then e & [itens = e[itens] & {[data = data, descricao = Record.Field(Secoes, e[secao]), linha = n]}]
                 else Erro(e, n, "data '" & original & "' repetida (ja na linha " & Text.From(anterior{0}[linha]) & ")"),
             Linhas = List.Buffer(Lines.FromText(Texto)),
-            Estado = List.Accumulate(List.Positions(Linhas), [secao = null, itens = {}, erros = {}], (e, i) =>
+            Estado = List.Accumulate(List.Positions(Linhas), [secao = null, itens = {}, erros = {}, vistas = []], (e, i) =>
                 let
                     n = i + 1,
                     t = Text.Trim(Linhas{i}),
                     titulo = if Text.StartsWith(t, "##") and Text.Trim(Text.Range(t, 2)) <> "" then NomeSecao(Text.Range(t, 2)) else null
                 in
                     if titulo <> null then
-                        (if Record.HasFields(Secoes, titulo) then e & [secao = titulo]
-                         else Erro(e & [secao = null], n, "secao desconhecida '" & t & "'"))
+                        (if not Record.HasFields(Secoes, titulo) then Erro(e & [secao = null], n, "secao desconhecida '" & t & "'")
+                         else if Record.HasFields(e[vistas], titulo) then
+                            Erro(e & [secao = titulo], n, "secao repetida '" & t & "' (ja na linha " & Text.From(Record.Field(e[vistas], titulo)) & ")")
+                         else e & [secao = titulo, vistas = e[vistas] & Record.AddField([], titulo, n)])
                     else if EhFixo(t) then
                         (if e[secao] <> "feriados fixos" then Erro(e, n, "feriado fixo '" & t & "' fora da secao '## Feriados Fixos'")
                          else
@@ -266,9 +273,12 @@ let
                             else Item(e, n, t, Text.PadStart(Text.From(Date.Year(d)), 4, "0") & "-" & Dois(Date.Month(d)) & "-" & Dois(Date.Day(d))))
                     else if PareceData(t) then Erro(e, n, "formato invalido '" & t & "' (use DD-MM ou DD-MM-AAAA)")
                     else e),
+            Mistura = Record.HasFields(Estado[vistas], "feriados moveis/diferenciados e pontos facultativos")
+                and (Record.HasFields(Estado[vistas], "feriados moveis/diferenciados") or Record.HasFields(Estado[vistas], "pontos facultativos")),
+            ErrosFinais = Estado[erros] & (if Mistura then {"secoes do formato novo e do antigo no mesmo arquivo: use so '## Feriados moveis/diferenciados e pontos facultativos' (ou, no formato antigo, '## Feriados moveis/diferenciados' e '## Pontos Facultativos')"} else {}),
             // Forca a validacao de TODAS as linhas antes de chamar o SQL.
             Validas =
-                if not List.IsEmpty(Estado[erros]) then Falha("Arquivo de feriados invalido: " & Text.Combine(Estado[erros], "; "))
+                if not List.IsEmpty(ErrosFinais) then Falha("Arquivo de feriados invalido: " & Text.Combine(ErrosFinais, "; "))
                 else if List.IsEmpty(Estado[itens]) then Falha("Arquivo de feriados sem nenhuma data.")
                 else Estado[itens],
             ParaSql = List.Transform(Validas, each [data = _[data], descricao = _[descricao]]),

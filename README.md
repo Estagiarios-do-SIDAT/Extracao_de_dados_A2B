@@ -103,7 +103,7 @@ powerbi/documentacao-powerbi-a2b.html a mesma documentação do painel, para o v
 pontos facultativos não ficam mais nos SQLs. Ficam no calendário
 `docs/feriados.txt` (cópia versionada, igual na Virtual TI, Decision e A2B) e no
 mesmo arquivo no SharePoint, lido pelo painel a cada atualização. É texto
-simples, em três seções: feriados fixos como `DD-MM` e datas de um ano como
+simples, em duas seções: feriados fixos como `DD-MM` e datas de um ano como
 `DD-MM-AAAA` (regras completas em [`powerbi/powerbi-query.md`](powerbi/powerbi-query.md), seção 14). Para incluir um feriado, basta editar o arquivo no SharePoint e
 salvar: não se muda o SQL nem se republica o relatório.
 

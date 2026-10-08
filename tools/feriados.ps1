@@ -3,12 +3,16 @@
 # Usado por executar_consulta.ps1, gerar_powerbi_m.ps1 e verificar_feriados.ps1.
 # Um unico calendario (o do TCU) para Virtual TI, Decision e A2B. As regras sao as
 # mesmas do codigo M do Power BI (powerbi/*.m):
-#   - texto UTF-8 com TRES secoes: "## Feriados Fixos",
-#     "## Feriados moveis/diferenciados" e "## Pontos Facultativos"; o texto
-#     antes da primeira secao e livre (explicacao);
+#   - texto UTF-8 com DUAS secoes: "## Feriados Fixos" e
+#     "## Feriados moveis/diferenciados e pontos facultativos"; o texto antes
+#     da primeira secao e livre (explicacao);
+#   - formato antigo (retrocompatibilidade, ate o arquivo do SharePoint ser
+#     trocado): no lugar da segunda secao, "## Feriados moveis/diferenciados"
+#     e "## Pontos Facultativos". Misturar os dois formatos, ou repetir uma
+#     secao, e erro;
 #   - so contam as linhas que tem APENAS uma data:
 #       DD-MM       feriado fixo (vale todo ano), na secao "## Feriados Fixos";
-#       DD-MM-AAAA  data de um ano, nas outras duas secoes;
+#       DD-MM-AAAA  data de um ano, na(s) outra(s) secao(oes);
 #     titulos, linhas vazias e paragrafos sao ignorados;
 #   - linha que parece data mas esta fora do formato (2026-04-03, 3-4-2026,
 #     03/04/2026), data inexistente (31-02-2026), data fora da secao certa,
@@ -24,7 +28,12 @@ $script:SecoesFeriados = [ordered]@{
     'feriados fixos'                = 'Feriado fixo'
     'feriados moveis/diferenciados' = ('Feriado m{0}vel/diferenciado' -f [char]0x00F3)
     'pontos facultativos'           = 'Ponto facultativo'
+    'feriados moveis/diferenciados e pontos facultativos' = ('Feriado m{0}vel/diferenciado ou ponto facultativo' -f [char]0x00F3)
 }
+# Formato novo x antigo: a secao unica de datas com ano nao convive com as duas
+# secoes antigas.
+$script:SecaoNovaFeriados = 'feriados moveis/diferenciados e pontos facultativos'
+$script:SecoesAntigasFeriados = @('feriados moveis/diferenciados', 'pontos facultativos')
 
 function ConvertTo-NomeSecao([string]$Texto) {
     $d = $Texto.Normalize([System.Text.NormalizationForm]::FormD)
@@ -57,6 +66,7 @@ function Read-ArquivoFeriados {
     $erros = New-Object System.Collections.Generic.List[string]
     $saida = New-Object System.Collections.Generic.List[object]
     $vistos = @{}
+    $secoesVistas = @{}
     $secao = $null
     $linhas = $texto -split "`r?`n"
     for ($i = 0; $i -lt $linhas.Count; $i++) {
@@ -64,7 +74,11 @@ function Read-ArquivoFeriados {
         $t = $linhas[$i].Trim()
         if ($t -match '^##\s*(.+?)\s*$') {
             $nome = ConvertTo-NomeSecao $Matches[1]
-            if ($script:SecoesFeriados.Contains($nome)) { $secao = $nome }
+            if ($script:SecoesFeriados.Contains($nome)) {
+                if ($secoesVistas.ContainsKey($nome)) { $erros.Add("linha ${n}: secao repetida '$t' (ja na linha $($secoesVistas[$nome]))") }
+                else { $secoesVistas[$nome] = $n }
+                $secao = $nome
+            }
             else { $erros.Add("linha ${n}: secao desconhecida '$t'") ; $secao = $null }
             continue
         }
@@ -86,6 +100,9 @@ function Read-ArquivoFeriados {
         if ($vistos.ContainsKey($norm)) { $erros.Add("linha ${n}: data '$t' repetida (ja na linha $($vistos[$norm]))"); continue }
         $vistos[$norm] = $n
         $saida.Add([pscustomobject]@{ Linha = $n; Data = $norm; Original = $t; Secao = $secao; Descricao = $script:SecoesFeriados[$secao] })
+    }
+    if ($secoesVistas.ContainsKey($script:SecaoNovaFeriados) -and @($script:SecoesAntigasFeriados | Where-Object { $secoesVistas.ContainsKey($_) }).Count -gt 0) {
+        $erros.Add("secoes do formato novo e do antigo no mesmo arquivo: use so '## Feriados moveis/diferenciados e pontos facultativos' (ou, no formato antigo, '## Feriados moveis/diferenciados' e '## Pontos Facultativos')")
     }
     if ($erros.Count -gt 0) { throw ("Arquivo de feriados invalido ({0}):`n  {1}" -f $caminho, ($erros -join "`n  ")) }
     if ($saida.Count -eq 0) { throw "Arquivo de feriados sem nenhuma data: $caminho" }
